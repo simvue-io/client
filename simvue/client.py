@@ -2,6 +2,7 @@ import configparser
 import datetime
 import hashlib
 import logging
+import mimetypes
 import os
 import re
 import requests
@@ -180,7 +181,7 @@ class Simvue(object):
 
         self._suppress_errors = value
 
-    def metadata(self, metadata):
+    def update_metadata(self, metadata):
         """
         Add/update metadata
         """
@@ -202,7 +203,7 @@ class Simvue(object):
 
         return False
 
-    def event(self, message):
+    def log_event(self, message):
         """
         Write event
         """
@@ -228,7 +229,7 @@ class Simvue(object):
 
         return True
 
-    def log(self, metrics):
+    def log_metrics(self, metrics):
         """
         Write metrics
         """
@@ -285,7 +286,7 @@ class Simvue(object):
                 return True
         return True
 
-    def save(self, filename, category):
+    def save(self, filename, category, filetype=None):
         """
         Upload file
         """
@@ -295,11 +296,33 @@ class Simvue(object):
         if not os.path.isfile(filename):
             raise RuntimeError('File %s does not exist' % filename)
 
+        if filetype:
+            mimetypes_valid = []
+            mimetypes.init()
+            for item in mimetypes.types_map:
+                mimetypes_valid.append(mimetypes.types_map[item])
+
+            if filetype not in mimetypes_valid:
+                raise RuntimeError('Invalid MIME type specified')
+
         data = {}
         data['name'] = os.path.basename(filename)
         data['run'] = self._name
         data['category'] = category
         data['checksum'] = calculate_sha256(filename)
+        data['size'] = os.path.getsize(filename)
+        data['originalPath'] = os.path.abspath(os.path.expanduser(os.path.expandvars(filename)))
+
+        # Determine mimetype
+        if not filetype:
+            mimetypes.init()
+            mimetype = mimetypes.guess_type(filename)[0]
+            if not mimetype:
+                mimetype = 'application/octet-stream'
+        else:
+            mimetype = filetype
+
+        data['type'] = mimetype
 
         # Get presigned URL
         try:
@@ -379,7 +402,7 @@ class Simvue(object):
 
         return False
 
-    def add_alert(self, name, type, metric, frequency, window, threshold=None, range_low=None, range_high=None):
+    def add_alert(self, name, type, metric, frequency, window, threshold=None, range_low=None, range_high=None, notification='none'):
         """
         Creates an alert with the specified name (if it doesn't exist) and applies it to the current run
         """
@@ -392,11 +415,15 @@ class Simvue(object):
         if type in ('is outside range', 'is inside range') and (range_low is None or range_high is None):
             raise RuntimeError('range_low and range_high must be defined for the specified alert type')
 
+        if notification not in ('none', 'email'):
+            raise RuntimeError('notification must be either none or email')
+
         alert = {'name': name,
                  'type': type,
                  'metric': metric,
                  'frequency': frequency,
-                 'window': window}
+                 'window': window,
+                 'notification': notification}
 
         if threshold is not None:
             alert['threshold'] = threshold

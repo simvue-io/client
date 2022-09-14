@@ -161,6 +161,6 @@ for step, (batch_x, batch_y) in enumerate(train_data.take(training_steps), 1):
     pred = lstm_net(batch_x, is_training=True)
     loss = cross_entropy_loss(pred, batch_y)
     acc = accuracy(pred, batch_y)
-    run.log({'loss': float(loss), 'accuracy': float(acc)})
+    run.log_metrics({'loss': float(loss), 'accuracy': float(acc)})
 
 run.close()

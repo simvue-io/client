@@ -45,12 +45,13 @@ with Simvue() as run:
     run.save('params.in', 'input')
 
     # Add an alert (the alert definition will be created if necessary)
-    run.add_alert('loss-too-high', # Name
-                 'is above',       # Type
-                 'loss',           # Metric
-                 1,                # Frequency
-                 1,                # Window
-                 threshold=10)     # Threshold
+    run.add_alert('loss-too-high',      # Name
+                  'is above',           # Type
+                  'loss',               # Metric
+                  1,                    # Frequency
+                  1,                    # Window
+                  threshold=10,         # Threshold
+		  notification='email') # Notification type 
 
     ...
 
