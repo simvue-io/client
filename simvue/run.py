@@ -285,6 +285,9 @@ class Run(object):
         elif name is not True:
             self._name = name
 
+        if name:
+            logger.info('Initialised run with name "%s" in folder "%s"', self._name, folder)
+
         if self._status == 'running':
             self._start()
         return True
