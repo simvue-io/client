@@ -140,3 +140,8 @@ simvue.ini
 
 # VSCode
 .vscode/
+
+# SU2
+examples/SU2/SU2_program/
+examples/SU2/*.cfg
+examples/SU2/*.su2
