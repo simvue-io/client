@@ -27,6 +27,12 @@ def get_auth():
     token = os.getenv('SIMVUE_TOKEN', token)
     url = os.getenv('SIMVUE_URL', url)
 
+    if not token:
+        raise AssertionError("Failed to retrieve token")
+
+    if not url:
+        raise AssertionError("Failed to retrieve URL")
+
     return url, token
 
 def get_server_version():

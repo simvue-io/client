@@ -50,6 +50,9 @@ METADATA_ATTRS: typing.Tuple[str, ...] = (
     'freestream_temperature'
 )
 
+logging.basicConfig()
+logger = logging.getLogger("Simvue.SU2")
+
 def parse_config_file(config_file: str) -> typing.Dict[str, str]:
     with open(config_file) as in_f:
         _lines: typing.List[str] = in_f.readlines()
@@ -130,25 +133,38 @@ def run_simulation() -> None:
             executable=BINARY_LOCATION,
         )
 
+        # For this example we want to abort the run if Simvue fails
+        # so we set the trigger any exception
+        def try_metric_loc(data, _, run=run):#
+            run.log_metrics(data)
+
+        # Stop all file monitors and SU2 if an exception is raised in any
+        # Firstly define callback to terminate SU2, then set
+        # file monitor to terminate all threads if one fails
+        def exception_callback(_):
+            run.kill_all_processes()
+
         with multiparser.FileMonitor(
-            per_thread_callback=run.log_metrics,
-            exception_callback=run.log_event,
+            per_thread_callback=try_metric_loc,
             notification_callback=run.log_event,
+            exception_callback=exception_callback,
             flatten_data=True,
             interval=5,
             log_level=logging.DEBUG,
             plain_logging=True,
-            termination_trigger=multiprocessing.Event()
+            terminate_all_on_fail=True
         ) as monitor:
             monitor.tail(
                 os.path.join(EXAMPLE_DIR, HISTORY),
                 parser_func=mp_tail_parse.record_csv
             )
 
+            # Don't parse the output files, just upload them
             for out_file in OUTPUT_FILES:
                 _path = os.path.join(EXAMPLE_DIR, out_file)
                 monitor.track(
                     _path,
+                    parser_func=lambda *_, **__: ({}, {}), 
                     callback=lambda path=_path, *_, **__: run.save(path, "output")
                 )
             
