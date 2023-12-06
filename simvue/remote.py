@@ -45,7 +45,7 @@ class Remote(object):
             response = post(f"{self._url}/api/runs", self._headers, data)
         except Exception as err:
             self._error(f"Exception creating run: {str(err)}")
-            return False
+            return None, False
 
         logger.debug('Got status code %d when creating run, with response: "%s"', response.status_code, response.text)
 
@@ -53,7 +53,7 @@ class Remote(object):
             self._error(f"Duplicate run, name {data['name']} already exists")
         elif response.status_code != 200:
             self._error(f"Got status code {response.status_code} when creating run")
-            return False
+            return None, False
 
         if 'name' in response.json():
             self._name = response.json()['name']
