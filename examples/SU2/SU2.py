@@ -133,9 +133,7 @@ def run_simulation() -> None:
             executable=BINARY_LOCATION,
         )
 
-        # For this example we want to abort the run if Simvue fails
-        # so we set the trigger any exception
-        def try_metric_loc(data, _, run=run):#
+        def try_metric_loc(data, _, run=run):
             run.log_metrics(data)
 
         # Stop all file monitors and SU2 if an exception is raised in any
@@ -165,6 +163,7 @@ def run_simulation() -> None:
                 monitor.track(
                     _path,
                     parser_func=lambda *_, **__: ({}, {}), 
+                    static=True, # Only read once when detected
                     callback=lambda path=_path, *_, **__: run.save(path, "output")
                 )
             
