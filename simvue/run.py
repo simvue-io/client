@@ -194,6 +194,7 @@ class Run(object):
         self._resources_metrics_interval = 30
         self._shutdown_event = None
         self._storage_id = None
+        self._enable_abort = False
 
     def __enter__(self):
         return self
@@ -266,6 +267,7 @@ class Run(object):
                               self._headers,
                               self._mode,
                               self._pid,
+                              self._enable_abort,
                               self._resources_metrics_interval)
 
         if multiprocessing.current_process()._parent_pid is None:
@@ -497,6 +499,7 @@ class Run(object):
                queue_size=QUEUE_SIZE,
                disable_resources_metrics=False,
                resources_metrics_interval=30,
+               enable_abort=False,
                storage_id=None):
         """
         Optional configuration
@@ -525,6 +528,10 @@ class Run(object):
 
         if storage_id:
             self._storage_id = storage_id
+
+        if not isinstance(enable_abort, bool):
+            self._error('enable_abort must be boolean')
+        self._enable_abort = enable_abort
 
     def update_metadata(self, metadata):
         """
