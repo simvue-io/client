@@ -57,6 +57,7 @@ class Executor:
         executable: str | None = None,
         script: str | None = None,
         input_file: str | None = None,
+        completion_callback: typing.Callable | None=None,
         **kwargs,
     ) -> None:
         """Add a process to be executed to the executor.
@@ -78,6 +79,14 @@ class Executor:
         are taken to be options to the command, for flags `flag=True` can be used to set the option and
         for options taking values `option=value`.
 
+        When the process has completed if a function has been provided for the `completion_callback` argument
+        this will be called, this callback is expected to take the following form:
+
+        ```python
+        def callback_function(status_code: int, std_out: str, std_err: str) -> None:
+            ...
+        ```
+
         Parameters
         ----------
         identifier : str
@@ -91,6 +100,8 @@ class Executor:
         input_file : str | None, optional
             the input file to run, note this only work if the input file is not an option, if this is the case
             you should provide it as such and perform the upload manually, by default None
+        completion_callback : typing.Callable | None, optional
+            callback to run when process terminates
         """
         _alert_kwargs = {
             k.replace("__", ""): v for k, v in kwargs.items() if k.startswith("__")
@@ -117,7 +128,8 @@ class Executor:
             runner: "simvue.Run",
             exit_status_dict: typing.Dict[str, int],
             std_err: typing.Dict[str, str],
-            std_out: typing.Dict[str, str]
+            std_out: typing.Dict[str, str],
+            run_on_exit: typing.Callable=completion_callback
         ) -> None:
             with open(f"{runner.name}_{proc_id}.err", "w") as err:
                 with open(f"{runner.name}_{proc_id}.out", "w") as out:
@@ -130,6 +142,12 @@ class Executor:
                 std_out[proc_id] = out.read()
 
             exit_status_dict[proc_id] = _result.returncode
+
+            run_on_exit(
+                status_code=exit_status_dict[proc_id],
+                std_out=std_out[proc_id],
+                std_err=std_err[proc_id]
+            )
 
         _command: typing.List[str] = []
 
@@ -195,7 +213,7 @@ class Executor:
         str
             command as a string
         """
-        if not process_id in self._processes:
+        if process_id not in self._processes:
             raise KeyError(f"Failed to retrieve '{process_id}', no such process")
         return self._command_str[process_id]
 

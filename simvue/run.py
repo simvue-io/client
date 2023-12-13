@@ -353,6 +353,7 @@ class Run(object):
         executable: str | None = None,
         script: str | None = None,
         input_file: str | None = None,
+        completion_callback: typing.Callable | None=None,
         **cmd_kwargs
     ) -> None:
         """Add a process to be executed to the executor.
@@ -374,6 +375,14 @@ class Run(object):
         are taken to be options to the command, for flags `flag=True` can be used to set the option and
         for options taking values `option=value`.
 
+        When the process has completed if a function has been provided for the `completion_callback` argument
+        this will be called, this callback is expected to take the following form:
+
+        ```python
+        def callback_function(status_code: int, std_out: str, std_err: str) -> None:
+            ...
+        ```
+
         Parameters
         ----------
         identifier : str
@@ -389,6 +398,8 @@ class Run(object):
         input_file : str | None, optional
             the input file to run, note this only work if the input file is not an option, if this is the case
             you should provide it as such and perform the upload manually, by default None
+        completion_callback : typing.Callable | None, optional
+            callback to run when process terminates
         **kwargs
             all other keyword arguments are interpreted as options to the command
         """
@@ -428,6 +439,7 @@ class Run(object):
             executable=executable,
             script=script,
             input_file=input_file,
+            completion_callback=completion_callback,
             **cmd_kwargs
         )
     
