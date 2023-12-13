@@ -186,6 +186,7 @@ class Run(object):
         self._queue_size = QUEUE_SIZE
         self._metrics_queue = None
         self._events_queue = None
+        self._abort_queue = None
         self._active = False
         self._url, self._token = get_auth()
         self._headers = {"Authorization": f"Bearer {self._token}"}
@@ -208,7 +209,10 @@ class Run(object):
             if self._shutdown_event is not None:
                 self._shutdown_event.set()
             if not type:
-                self.set_status('completed')
+                if not self._abort_queue.empty():
+                    self.set_status('terminated')
+                else:
+                    self.set_status('completed')
             else:
                 if self._active:
                     self.log_event(f"{type.__name__}: {value}")
@@ -256,9 +260,11 @@ class Run(object):
 
         self._metrics_queue = multiprocessing.Manager().Queue(maxsize=self._queue_size)
         self._events_queue = multiprocessing.Manager().Queue(maxsize=self._queue_size)
+        self._abort_queue = multiprocessing.Manager().Queue()
         self._shutdown_event = multiprocessing.Manager().Event()
         self._worker = Worker(self._metrics_queue,
                               self._events_queue,
+                              self._abort_queue,
                               self._shutdown_event,
                               self._uuid,
                               self._name,

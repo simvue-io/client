@@ -35,11 +35,12 @@ def update_processes(parent, processes):
 
 
 class Worker(threading.Thread):
-    def __init__(self, metrics_queue, events_queue, shutdown_event, uuid, run_name, run_id, url, headers, mode, pid, enable_abort, resources_metrics_interval):
+    def __init__(self, metrics_queue, events_queue, abort_queue, shutdown_event, uuid, run_name, run_id, url, headers, mode, pid, enable_abort, resources_metrics_interval):
         threading.Thread.__init__(self)
         self._parent_thread = threading.current_thread()
         self._metrics_queue = metrics_queue
         self._events_queue = events_queue
+        self._abort_queue = abort_queue
         self._shutdown_event = shutdown_event
         self._run_name = run_name
         self._run_id = run_id
@@ -183,6 +184,7 @@ class Worker(threading.Thread):
                     if response.json()['status']:
                         if self._pid:
                             logger.info('Aborting user process due to request from server')
+                            self._abort_queue.put('aborted')
                             p = psutil.Process(self._pid)
                             p.kill()
                 except Exception as err:
