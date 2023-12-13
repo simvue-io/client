@@ -127,10 +127,17 @@ def run_simulation() -> None:
                 filetype="text/plain" if input_file.endswith(".cfg") else None
             )
 
+        _trigger = multiprocessing.Event()
+
+        # Ensure FileMonitor stops when the process completes
+        def completion_callback(*_, **__) -> None:
+            _trigger.set()
+
         run.add_process(
             f"{run.name}",
             _config,
             executable=BINARY_LOCATION,
+            completion_callback=completion_callback
         )
 
         def try_metric_loc(data, _, run=run):
