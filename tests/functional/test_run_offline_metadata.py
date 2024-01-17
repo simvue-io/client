@@ -10,6 +10,7 @@ from simvue.sender import sender
 
 import common
 
+
 class TestRunOfflineMetadata(unittest.TestCase):
     def test_run_metadata(self):
         """
@@ -17,25 +18,27 @@ class TestRunOfflineMetadata(unittest.TestCase):
         """
         common.update_config()
         try:
-            shutil.rmtree('./offline')
+            shutil.rmtree("./offline")
         except:
             pass
 
-        name = 'test-%s' % str(uuid.uuid4())
-        metadata = {'a': 'string', 'b': 1, 'c': 2.5}
-        run = Run('offline')
-        run.init(name, metadata=metadata, folder=common.FOLDER)
+        name = "test-%s" % str(uuid.uuid4())
+        folder = "/test-%s" % str(uuid.uuid4())
+        metadata = {"a": "string", "b": 1, "c": 2.5}
+        run = Run("offline")
+        run.init(name, metadata=metadata, folder=folder)
         run.close()
 
         sender()
 
         client = Client()
-        data = client.get_run(name, metadata=True)
-        self.assertEqual(name, data['name'])
-        self.assertEqual(data['metadata'], metadata)
+        data = client.get_runs([f"name == {name}"])
+        self.assertEqual(len(data), 1)
+        self.assertEqual(name, data[0]["name"])
+        self.assertEqual(metadata, data[0]["metadata"])
 
-        runs = client.delete_runs(common.FOLDER)
-        self.assertEqual(len(runs), 1)
+        runs = client.delete_folder(folder, runs=True)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
