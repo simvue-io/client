@@ -10,6 +10,7 @@ from simvue.sender import sender
 
 import common
 
+
 class TestRunOffline(unittest.TestCase):
     def test_run_offline_tags_update(self):
         """
@@ -17,30 +18,32 @@ class TestRunOffline(unittest.TestCase):
         """
         common.update_config()
         try:
-            shutil.rmtree('./offline')
+            shutil.rmtree("./offline")
         except:
             pass
 
-        name = 'test-%s' % str(uuid.uuid4())
-        tags = ['a1']
+        name = "test-%s" % str(uuid.uuid4())
+        folder = "/test-%s" % str(uuid.uuid4())
+        tags = ["a1"]
         run = Run()
-        run.init(name, tags=tags, folder=common.FOLDER)
+        run.init(name, tags=tags, folder=folder)
 
         sender()
 
-        run.update_tags(['b2'])
+        tags = ["b2"]
+        run.update_tags(tags)
         run.close()
 
         sender()
 
-        tags.append('b2')
-
         client = Client()
-        data = client.get_run(name, tags=True)
-        self.assertEqual(tags, data['tags'])
+        data = client.get_runs([f"name == {name}"], tags=True)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(name, data[0]["name"])
+        self.assertEqual(tags, data[0]["tags"])
 
-        runs = client.delete_runs(common.FOLDER)
-        self.assertEqual(len(runs), 1)
+        runs = client.delete_folder(folder, runs=True)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
