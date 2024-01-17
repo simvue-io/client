@@ -11,7 +11,6 @@ from simvue.sender import sender
 import common
 
 
-
 class TestRunOffline(unittest.TestCase):
     def test_basic_run(self):
         """
@@ -19,23 +18,25 @@ class TestRunOffline(unittest.TestCase):
         """
         common.update_config()
         try:
-            shutil.rmtree('./offline')
+            shutil.rmtree("./offline")
         except:
             pass
 
-        name = 'test-%s' % str(uuid.uuid4())
-        run = Run('offline')
-        run.init(name, folder=common.FOLDER)
+        name = "test-%s" % str(uuid.uuid4())
+        folder = "/test-%s" % str(uuid.uuid4())
+        run = Run("offline")
+        run.init(name, folder=folder)
         run.close()
 
         sender()
 
         client = Client()
-        data = client.get_run(name)
-        self.assertEqual(name, data['name'])
+        data = client.get_runs([f"name == {name}"])
+        self.assertEqual(len(data), 1)
+        self.assertEqual(name, data[0]["name"])
 
-        runs = client.delete_runs(common.FOLDER)
-        self.assertEqual(len(runs), 1)
+        runs = client.delete_folder(folder, runs=True)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
