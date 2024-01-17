@@ -2,8 +2,6 @@ import unittest
 import uuid
 from simvue import Run, Client
 
-import common
-
 class TestRun(unittest.TestCase):
     def test_basic_run(self):
         """
