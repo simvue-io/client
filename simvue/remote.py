@@ -67,13 +67,9 @@ class Remote(object):
         """
         Update metadata, tags or status
         """
-        if run is not None and self._version == 0:
-            data['name'] = run
-
-        if self._id and self._version > 0:
-            data['id'] = self._id
-            if 'name' in data:
-                del data['name']
+        data['id'] = self._id
+        if 'name' in data:
+            del data['name']
 
         logger.debug('Updating run with data: "%s"', data)
 

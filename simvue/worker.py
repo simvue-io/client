@@ -9,7 +9,7 @@ import threading
 import msgpack
 
 from .metrics import get_process_memory, get_process_cpu, get_gpu_metrics
-from .utilities import get_offline_directory, create_file, get_server_version
+from .utilities import get_offline_directory, create_file
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,6 @@ class Worker(threading.Thread):
         self._start_time = time.time()
         self._processes = []
         self._resources_metrics_interval = resources_metrics_interval
-        self._version = get_server_version()
         self._pid = pid
         if pid:
             self._processes = update_processes(psutil.Process(pid), [])
@@ -63,8 +62,6 @@ class Worker(threading.Thread):
         Send a heartbeat
         """
         data = {'id': self._run_id}
-        if self._version == 0:
-            data = {'name': self._run_name}
 
         if self._mode == 'online':
             from .api import put
@@ -114,8 +111,6 @@ class Worker(threading.Thread):
                         gpu = get_gpu_metrics(self._processes)
                         if memory is not None and cpu is not None:
                             data = {}
-                            if self._version == 0:
-                                data['run'] = self._run_name
                             data['step'] = 0
                             data['values'] = {'resources/cpu.usage.percent': cpu,
                                           'resources/memory.usage': memory}
@@ -147,8 +142,7 @@ class Worker(threading.Thread):
 
             if buffer:
                 logger.debug('Sending metrics')
-                if self._version > 0:
-                    buffer = {'metrics': buffer, 'run': self._run_id}
+                buffer = {'metrics': buffer, 'run': self._run_id}
                 try:
                     if self._mode == 'online': buffer = msgpack.packb(buffer, use_bin_type=True)
                     self.post('metrics', buffer)
@@ -165,8 +159,7 @@ class Worker(threading.Thread):
 
             if buffer:
                 logger.debug('Sending events')
-                if self._version > 0:
-                    buffer = {'events': buffer, 'run': self._run_id}
+                buffer = {'events': buffer, 'run': self._run_id}
                 try:
                     if self._mode == 'online': buffer = msgpack.packb(buffer, use_bin_type=True)
                     self.post('events', buffer)
