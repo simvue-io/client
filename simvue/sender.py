@@ -12,12 +12,28 @@ from .utilities import get_offline_directory, create_file, remove_file
 
 logger = logging.getLogger(__name__)
 
-def update_name(name, data):
+def set_details(name, id, filename):
     """
-    Update name in metrics/events
+    Write name & id to file
+    """
+    data = {'name': name, 'id': id}
+    with open(filename, 'w') as fh:
+        json.dump(data, fh)
+
+def get_details(name):
+    """
+    Get name & id from file
+    """
+    with open(name) as fh:
+        data = json.load(fh)
+        return data['name'], data['id']
+
+def update_name(id, data):
+    """
+    Update id in metrics/events
     """
     for item in data:
-        item['run'] = name
+        item['id'] = id
 
 def add_name(name, data, filename):
     """
@@ -38,13 +54,12 @@ def get_json(filename, name=None):
         data = json.load(fh)
     if name:
         if 'name' in data:
-            if not data['name']:
-                data['name'] = name
+            del data['name']
+            data['id'] = name
         else:
             for item in data:
-                if 'run' in item:
-                    if not item['run']:
-                        item['run'] = name
+                if item == 'run':
+                    data[item] = name
     return data
 
 def sender():
@@ -52,6 +67,19 @@ def sender():
     Asynchronous upload of runs to Simvue server
     """
     directory = get_offline_directory()
+
+    # Clean up old runs after waiting 5 mins
+    runs = glob.glob(f"{directory}/*/sent")
+
+    for run in runs:
+        id = run.split('/')[len(run.split('/')) - 2]
+        logger.info('Cleaning up directory with id %s', id)
+
+        if time.time() - os.path.getmtime(run) > 300:
+            try:
+                shutil.rmtree(f"{directory}/{id}")
+            except Exception as err:
+                logger.error('Got exception trying to cleanup run in directory %s', id)
 
     # Deal with runs in the created, running or a terminal state
     runs = glob.glob(f"{directory}/*/created") + \
@@ -103,23 +131,30 @@ def sender():
         else:
             logger.info('Considering run with no name yet and id %s', id)
 
-        remote = Remote(run_init['name'], id, suppress_errors=True)
-
-        # Check token
-        remote.check_token()
-
         # Create run if it hasn't previously been created
         created_file = f"{current}/init"
         name = None
         if not os.path.isfile(created_file):
-            name = remote.create_run(run_init)
+            remote = Remote(run_init['name'], id, None, suppress_errors=True)
+
+            # Check token
+            remote.check_token()
+
+            name, run_id = remote.create_run(run_init)
             if name:
-                logger.info('Creating run with name %s', name)
+                logger.info('Creating run with name %s and id %s', name, id)
                 run_init = add_name(name, run_init, f"{current}/run.json")
-                create_file(created_file)
+                set_details(name, run_id, created_file)
             else:
                 logger.error('Failure creating run')
                 continue
+        else:
+            name, run_id = get_details(created_file)
+            run_init['name'] = name
+            remote = Remote(run_init['name'], id, run_id, suppress_errors=True)
+
+            # Check token
+            remote.check_token()
 
         if status == 'running':
             # Check for recent heartbeat
@@ -165,29 +200,35 @@ def sender():
             # Handle metrics
             if '/metrics-' in record:
                 logger.info('Sending metrics for run %s', run_init['name'])
-                data = get_json(record, name)
-                update_name(run_init['name'], data)
+                data = get_json(record, run_id)
+                #update_name(run_id, data)
                 if remote.send_metrics(msgpack.packb(data, use_bin_type=True)):
                     rename = True
 
             # Handle events
             if '/events-' in record:
                 logger.info('Sending events for run %s', run_init['name'])
-                data = get_json(record, name)
-                update_name(run_init['name'], data)
+                data = get_json(record, run_id)
+                #update_name(run_id, data)
                 if remote.send_event(msgpack.packb(data, use_bin_type=True)):
                     rename = True
 
             # Handle updates
             if '/update-' in record:
                 logger.info('Sending update for run %s', run_init['name'])
-                if remote.update(get_json(record, name), run_init['name']):
+                data = get_json(record, run_id)
+                if remote.update(data, run_init['name']):
+                    for item in data:
+                        if item == "status" and data[item] in ('completed', 'failed', 'terminated'):
+                            create_file(f"{current}/sent")
+                            remove_file(f"{current}/{status}")
                     rename = True
+
 
             # Handle folders
             if '/folder-' in record:
                 logger.info('Sending folder details for run %s', run_init['name'])
-                if remote.set_folder_details(get_json(record, name), run_init['name']):
+                if remote.set_folder_details(get_json(record, run_id), run_init['name']):
                     rename = True
 
             # Handle alerts
@@ -210,19 +251,10 @@ def sender():
         # If the status is completed and there were no updates, the run must have completely finished
         if updates == 0 and status in ('completed', 'failed', 'terminated'):
             logger.info('Finished sending run %s', run_init['name'])
-            data = {'name': run_init['name'], 'status': status}
+            data = {'id': run_id, 'status': status}
             if remote.update(data):
                 create_file(f"{current}/sent")
                 remove_file(f"{current}/{status}")
-                cleanup = True
         elif updates == 0 and status == 'lost':
             logger.info('Finished sending run %s as it was lost', run_init['name'])
             create_file(f"{current}/sent")
-            cleanup = True
-
-        # Cleanup runs which have been dealt with
-        if cleanup:
-            try:
-                shutil.rmtree(f"{directory}/{id}")
-            except Exception as err:
-                logger.error('Got exception trying to cleanup run %s: %s', run_init['name'], str(err))
