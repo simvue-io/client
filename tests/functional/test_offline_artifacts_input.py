@@ -16,6 +16,12 @@ class TestArtifactsOffline(unittest.TestCase):
         """
         Create a run & an artifact of type 'input' & check it can be downloaded for an offline run
         """
+        common.update_config()
+        try:
+            shutil.rmtree("./offline")
+        except:
+            pass
+
         run = Run("offline")
         name = "test-%s" % str(uuid.uuid4())
         folder = "/test-%s" % str(uuid.uuid4())
