@@ -46,13 +46,19 @@ def add_name(name, data, filename):
 
     return data
 
-def get_json(filename, name=None):
+def get_json(filename, name=None, artifact=True):
     """
     Get JSON from a file
     """
     with open(filename, 'r') as fh:
         data = json.load(fh)
     if name:
+        if artifact:
+            for item in data:
+                if item == 'run':
+                    data[item] = name
+            return data
+
         if 'name' in data:
             del data['name']
             data['id'] = name
@@ -234,13 +240,13 @@ def sender():
             # Handle alerts
             if '/alert-' in record:
                 logger.info('Sending alert details for run %s', run_init['name'])
-                if remote.add_alert(get_json(record, name), run_init['name']):
+                if remote.add_alert(get_json(record, run_id), run_init['name']):
                     rename = True
 
             # Handle files
             if '/file-' in record:
                 logger.info('Saving file for run %s', run_init['name'])
-                if remote.save_file(get_json(record, name), run_init['name']):
+                if remote.save_file(get_json(record, run_id), run_init['name']):
                     rename = True
 
             # Rename processed files
