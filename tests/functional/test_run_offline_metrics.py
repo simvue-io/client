@@ -40,7 +40,7 @@ class TestRunOfflineMetrics(unittest.TestCase):
         time.sleep(5)
 
         client = Client()
-        data = client.get_runs([f"name == {name}"], tags=True)
+        data = client.get_runs([f"name == {name}"])
         run_id = data[0]["id"]
 
         data_a = client.get_metrics(run_id, "a", "step")
