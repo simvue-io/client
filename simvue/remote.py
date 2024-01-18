@@ -63,7 +63,7 @@ class Remote(object):
 
         return self._name, self._id
 
-    def update(self, data, run=None):
+    def update(self, data):
         """
         Update metadata, tags or status
         """
@@ -87,28 +87,24 @@ class Remote(object):
         self._error(f"Got status code {response.status_code} when updating run")
         return False
 
-    def set_folder_details(self, data, run=None):
+    def set_folder_details(self, data):
         """
         Set folder details
         """
-        if run is not None and self._version == 0:
-            data['name'] = run
+        try:
+            response = post(f"{self._url}/api/folders", self._headers, data)
+        except Exception as err:
+            self._error(f"Exception creatig folder: {err}")
+            return False
 
-        if self._version > 0:
-            try:
-                response = post(f"{self._url}/api/folders", self._headers, data)
-            except Exception as err:
-                self._error(f"Exception creatig folder: {err}")
-                return False
+        if response.status_code == 200 or response.status_code == 409:
+            folder_id = response.json()['id']
+            data['id'] = folder_id
 
-            if response.status_code == 200 or response.status_code == 409:
-                folder_id = response.json()['id']
-                data['id'] = folder_id
-
-                if response.status_code == 200:
-                    logger.debug('Got id of new folder: "%s"', folder_id)
-                else:
-                    logger.debug('Got id of existing folder: "%s"', folder_id)
+            if response.status_code == 200:
+               logger.debug('Got id of new folder: "%s"', folder_id)
+            else:
+                logger.debug('Got id of existing folder: "%s"', folder_id)
 
         logger.debug('Setting folder details with data: "%s"', data)
 
@@ -126,7 +122,7 @@ class Remote(object):
         self._error(f"Got status code {response.status_code} when updating folder details")
         return False
 
-    def save_file(self, data, run=None):
+    def save_file(self, data):
         """
         Save file
         """
@@ -207,13 +203,10 @@ class Remote(object):
 
         return True
 
-    def add_alert(self, data, run=None):
+    def add_alert(self, data):
         """
         Add an alert
         """
-        if run is not None:
-            data['run'] = run
-
         logger.debug('Adding alert with data: "%s"', data)
 
         try:

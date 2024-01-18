@@ -223,7 +223,7 @@ def sender():
             if '/update-' in record:
                 logger.info('Sending update for run %s', run_init['name'])
                 data = get_json(record, run_id)
-                if remote.update(data, run_init['name']):
+                if remote.update(data):
                     for item in data:
                         if item == "status" and data[item] in ('completed', 'failed', 'terminated'):
                             create_file(f"{current}/sent")
@@ -234,19 +234,19 @@ def sender():
             # Handle folders
             if '/folder-' in record:
                 logger.info('Sending folder details for run %s', run_init['name'])
-                if remote.set_folder_details(get_json(record, run_id), run_init['name']):
+                if remote.set_folder_details(get_json(record, run_id)):
                     rename = True
 
             # Handle alerts
             if '/alert-' in record:
                 logger.info('Sending alert details for run %s', run_init['name'])
-                if remote.add_alert(get_json(record, run_id), run_init['name']):
+                if remote.add_alert(get_json(record, run_id)):
                     rename = True
 
             # Handle files
             if '/file-' in record:
                 logger.info('Saving file for run %s', run_init['name'])
-                if remote.save_file(get_json(record, run_id), run_init['name']):
+                if remote.save_file(get_json(record, run_id)):
                     rename = True
 
             # Rename processed files
