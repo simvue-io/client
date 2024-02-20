@@ -162,9 +162,10 @@ def sender():
             # Check token
             remote.check_token()
 
+        heartbeat_filename = f"{current}/heartbeat"
+
         if status == 'running':
             # Check for recent heartbeat
-            heartbeat_filename = f"{current}/heartbeat"
             if os.path.isfile(heartbeat_filename):
                 mtime = os.path.getmtime(heartbeat_filename)
                 if time.time() - mtime > 180:
@@ -183,9 +184,10 @@ def sender():
             remove_file(f"{current}/running")
 
         # Send heartbeat if the heartbeat file was touched recently
-        if status == 'running' and time.time() - os.path.getmtime(heartbeat_filename) < 120:
-            logger.info('Sending heartbeat for run with name %s', run_init['name'])
-            remote.send_heartbeat()
+        if os.path.isfile(heartbeat_filename):
+            if status == 'running' and time.time() - os.path.getmtime(heartbeat_filename) < 120:
+                logger.info('Sending heartbeat for run with name %s', run_init['name'])
+                remote.send_heartbeat()
 
         # Upload metrics, events, files & metadata as necessary
         files = sorted(glob.glob(f"{current}/*"), key=os.path.getmtime)
