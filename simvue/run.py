@@ -335,7 +335,7 @@ class Run(object):
         except ValidationError as err:
             self._error(err)
 
-        self._simvue = Simvue(self._name, self._uuid, self._mode, self._suppress_errors)
+        self._simvue = Simvue(self._name, self._uuid, None, self._mode, self._suppress_errors)
         name, self._id = self._simvue.create_run(data)
 
         if not name:
