@@ -58,7 +58,7 @@ class Offline(object):
         filename = f"{self._directory}/{status}"
         create_file(filename)
 
-        return True
+        return data['name'], None
 
     def update(self, data):
         """
