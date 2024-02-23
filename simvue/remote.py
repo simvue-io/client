@@ -299,7 +299,7 @@ class Remote(object):
         logger.debug('Sending heartbeat')
 
         try:
-            response = put(f"{self._url}/api/runs/heartbeat", self._headers, {'name': self._name})
+            response = put(f"{self._url}/api/runs/heartbeat", self._headers, {'id': self._id})
         except Exception as err:
             self._error(f"Exception creating run: {str(err)}")
             return False
