@@ -1,6 +1,8 @@
 from io import BytesIO
 import pickle
-import plotly
+
+
+from .utilities import check_extra
 
 class Serializer:
     def serialize(self, data, allow_pickle=False):
@@ -51,16 +53,27 @@ def get_serializer(data, allow_pickle):
         return _serialize_pickle
     return None
 
+@check_extra("plot")
 def _serialize_plotly_figure(data):
+    try:
+        import plotly
+    except ImportError:
+        return
     mimetype = 'application/vnd.plotly.v1+json'
     data = plotly.io.to_json(data, 'json')
     return data, mimetype
 
+@check_extra("plot")
 def _serialize_matplotlib_figure(data):
+    try:
+        import plotly
+    except ImportError:
+        return None
     mimetype = 'application/vnd.plotly.v1+json'
     data = plotly.io.to_json(plotly.tools.mpl_to_plotly(data), 'json')
     return data, mimetype
 
+@check_extra("dataset")
 def _serialize_numpy_array(data):
     try:
         import numpy as np
@@ -75,6 +88,7 @@ def _serialize_numpy_array(data):
     data = mfile.read()
     return data, mimetype
 
+@check_extra("dataset")
 def _serialize_dataframe(data):
     mimetype = 'application/vnd.simvue.df.v1'
     mfile = BytesIO()
@@ -83,6 +97,7 @@ def _serialize_dataframe(data):
     data = mfile.read()
     return data, mimetype
 
+@check_extra("torch")
 def _serialize_torch_tensor(data):
     try:
         import torch
@@ -127,14 +142,25 @@ def get_deserializer(mimetype, allow_pickle):
         return _deserialize_pickle
     return None
 
+@check_extra("plot")
 def _deserialize_plotly_figure(data):
+    try:
+        import plotly
+    except ImportError:
+        return None
     data = plotly.io.from_json(data)
     return data
 
+@check_extra("plot")
 def _deserialize_matplotlib_figure(data):
+    try:
+        import plotly
+    except ImportError:
+        return None
     data = plotly.io.from_json(data)
     return data
 
+@check_extra("dataset")
 def _deserialize_numpy_array(data):
     try:
         import numpy as np
@@ -147,6 +173,7 @@ def _deserialize_numpy_array(data):
     data = np.load(mfile, allow_pickle=False)
     return data
 
+@check_extra("dataset")
 def _deserialize_dataframe(data):
     try:
         import pandas as pd
@@ -159,6 +186,7 @@ def _deserialize_dataframe(data):
     data = pd.read_csv(mfile, index_col=0)
     return data
 
+@check_extra("torch")
 def _deserialize_torch_tensor(data):
     try:
         import torch

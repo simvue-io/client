@@ -5,7 +5,7 @@ import pickle
 import requests
 
 from .serialization import Deserializer
-from .utilities import get_auth, get_server_version
+from .utilities import get_auth, check_extra
 from .converters import to_dataframe, metrics_to_dataframe
 
 CONCURRENT_DOWNLOADS = 10
@@ -37,7 +37,24 @@ class Client(object):
     def __init__(self):
         self._url, self._token = get_auth()
         self._headers = {"Authorization": f"Bearer {self._token}"}
-        self._version = get_server_version()
+
+    def get_run_id_from_name(self, name):
+        """
+        Get run id for the specified run name
+        """
+        params = {'filters': json.dumps([f"name == {name}"])}
+
+        response = requests.get(f"{self._url}/api/runs", headers=self._headers, params=params)
+
+        if response.status_code == 200:
+            if 'data' in response.json():
+                if len(response.json()['data']) == 0:
+                    raise RuntimeError("Could not collect ID - no run found with this name.")
+                if len(response.json()['data']) > 1:
+                    raise RuntimeError("Could not collect ID - more than one run exists with this name.")
+                else:
+                    return response.json()['data'][0]['id']
+        raise RuntimeError(response.text)
 
     def get_run(self, run, system=False, tags=False, metadata=False):
         """
@@ -179,7 +196,7 @@ class Client(object):
             if 'detail' in response.json():
                 if response.json()['detail'] == 'No such run':
                     raise Exception('Run does not exist')
-                elif response.json()['detail'] == 'artifact does not exist':
+                elif response.json()['detail'] == 'No such artifact':
                     raise Exception('Artifact does not exist')
 
         if response.status_code != 200:
@@ -411,11 +428,12 @@ class Client(object):
                         data.append([item[xaxis], item['min'], item['average'], item['max'], name])
 
             if format == 'dataframe':
-                return metrics_to_dataframe(response.json(), xaxis)
+                return metrics_to_dataframe(data, xaxis)
             return data
 
         raise Exception(response.text)
-        
+    
+    @check_extra("plot")
     def plot_metrics(self, runs, names, xaxis, max_points=0):
         """
         Plot time series metrics from multiple runs and/or metrics
@@ -466,5 +484,38 @@ class Client(object):
 
         if response.status_code == 200:
             return response.json()['data']
+
+        raise Exception(response.text)
+    
+    def get_alerts(self, run, triggered_only = True, names_only = True):
+        """_summary_
+
+        Parameters
+        ----------
+        run : str
+            The ID of the run to find alerts for
+        critical_only : bool, optional
+            Whether to only return details about alerts which are currently critical, by default True
+        names_only: bool, optional
+            Whether to only return the names of the alerts (otherwise return the full details of the alerts), by default True
+        """
+        response = requests.get(f"{self._url}/api/runs/{run}", headers=self._headers)
+
+        if response.status_code == 404:
+            if 'detail' in response.json():
+                if response.json()['detail'] == 'run does not exist':
+                    raise Exception('Run does not exist')
+
+        elif response.status_code == 200:
+            if triggered_only:
+                if names_only:
+                    return [alert['alert']['name'] for alert in response.json()['alerts'] if alert['status']['current'] == 'critical']
+                else:
+                    return [alert for alert in response.json()['alerts'] if alert['status']['current'] == 'critical']
+            else:
+                if names_only:
+                    return [alert['alert']['name'] for alert in response.json()['alerts']]
+                else:
+                    return response.json()['alerts']
 
         raise Exception(response.text)

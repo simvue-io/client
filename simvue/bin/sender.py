@@ -1,9 +1,9 @@
 """Send runs to server"""
-#!/usr/bin/env python
 import getpass
 import os
 import logging
 import sys
+import tempfile
 
 from simvue.sender import sender
 from simvue.utilities import create_file, remove_file
@@ -17,14 +17,17 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-if __name__ == "__main__":
-    lockfile = f"/tmp/simvue-{getpass.getuser()}.lock"
-    if not os.path.isfile(lockfile):
-        create_file(lockfile)
+def run() -> None:
+    lockfile = os.path.join(tempfile.gettempdir(), f"simvue-{getpass.getuser()}.lock")
+    
+    if os.path.isfile(lockfile):
+        logger.error("Cannot initiate run, locked by other process.")
+        sys.exit(1)
 
-        try:
-            sender()
-        except Exception as err:
-            logger.critical('Exception running sender: %s', str(err))
+    create_file(lockfile)
+    try:
+        sender()
+    except Exception as err:
+        logger.critical('Exception running sender: %s', str(err))
 
-        remove_file(lockfile)
+    remove_file(lockfile)

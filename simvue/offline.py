@@ -13,7 +13,7 @@ class Offline(object):
     """
     Class for offline runs
     """
-    def __init__(self, name, uuid, id, suppress_errors=True):
+    def __init__(self, name, uuid, id, suppress_errors=False):
         self._id = id
         self._name = name
         self._uuid = uuid

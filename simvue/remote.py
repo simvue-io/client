@@ -2,7 +2,7 @@ import logging
 import time
 
 from .api import post, put, get
-from .utilities import get_auth, get_expiry, prepare_for_api, get_server_version
+from .utilities import get_auth, get_expiry, prepare_for_api
 from .version import __version__
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ class Remote(object):
     """
     Class which interacts with Simvue REST API
     """
-    def __init__(self, name, uuid, id, suppress_errors=True):
+    def __init__(self, name, uuid, id, suppress_errors=False):
         self._id = id
         self._name = name
         self._uuid = uuid
@@ -24,7 +24,6 @@ class Remote(object):
                          "User-Agent": f"Simvue Python client {__version__}"}
         self._headers_mp = self._headers.copy()
         self._headers_mp['Content-Type'] = 'application/msgpack'
-        self._version = get_server_version()
 
     def _error(self, message):
         """
@@ -67,13 +66,7 @@ class Remote(object):
         """
         Update metadata, tags or status
         """
-        if run is not None and self._version == 0:
-            data['name'] = run
-
-        if self._id and self._version > 0:
-            data['id'] = self._id
-            if 'name' in data:
-                del data['name']
+        data['id'] = self._id
 
         logger.debug('Updating run with data: "%s"', data)
 
@@ -95,24 +88,20 @@ class Remote(object):
         """
         Set folder details
         """
-        if run is not None and self._version == 0:
-            data['name'] = run
+        try:
+            response = post(f"{self._url}/api/folders", self._headers, data)
+        except Exception as err:
+            self._error(f"Exception creatig folder: {err}")
+            return False
 
-        if self._version > 0:
-            try:
-                response = post(f"{self._url}/api/folders", self._headers, data)
-            except Exception as err:
-                self._error(f"Exception creatig folder: {err}")
-                return False
+        if response.status_code == 200 or response.status_code == 409:
+            folder_id = response.json()['id']
+            data['id'] = folder_id
 
-            if response.status_code == 200 or response.status_code == 409:
-                folder_id = response.json()['id']
-                data['id'] = folder_id
-
-                if response.status_code == 200:
-                    logger.debug('Got id of new folder: "%s"', folder_id)
-                else:
-                    logger.debug('Got id of existing folder: "%s"', folder_id)
+            if response.status_code == 200:
+                logger.debug('Got id of new folder: "%s"', folder_id)
+            else:
+                logger.debug('Got id of existing folder: "%s"', folder_id)
 
         logger.debug('Setting folder details with data: "%s"', data)
 
@@ -156,7 +145,7 @@ class Remote(object):
         if 'storage_id' in response.json():
             storage_id = response.json()['storage_id']
 
-        if self._version > 0 and not storage_id:
+        if not storage_id:
             return None
 
         if 'url' in response.json():
@@ -194,10 +183,8 @@ class Remote(object):
 
         if storage_id:
             # Confirm successful upload
-            path = f"{self._url}/api/data"
-            if self._version > 0:
-                path = f"{self._url}/api/runs/{self._id}/artifacts"
-                data['storage'] = storage_id
+            path = f"{self._url}/api/runs/{self._id}/artifacts"
+            data['storage'] = storage_id
 
             try:
                 response = put(path, self._headers, prepare_for_api(data))

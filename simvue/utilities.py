@@ -3,8 +3,35 @@ import jwt
 import logging
 import os
 import requests
+import typing
 
 logger = logging.getLogger(__name__)
+
+def check_extra(extra_name: str) -> typing.Callable:
+    def decorator(class_func: typing.Callable) -> typing.Callable:
+        def wrapper(self, *args, **kwargs) -> typing.Any:
+            if extra_name == "plot":
+                try:
+                    import matplotlib
+                    import plotly
+                except ImportError:
+                    raise RuntimeError(f"Plotting features require the '{extra_name}' extension to Simvue")
+            elif extra_name == "torch":
+                try:
+                    import torch
+                except ImportError:
+                    raise RuntimeError(f"PyTorch features require the '{extra_name}' extension to Simvue")
+            elif extra_name == "dataset":
+                try:
+                    import pandas
+                    import numpy
+                except ImportError:
+                    raise RuntimeError(f"Dataset features require the '{extra_name}' extension to Simvue")
+            else:
+                raise RuntimeError(f"Unrecognised extra '{extra_name}'")
+            return class_func(self, *args, **kwargs)
+        return wrapper
+    return decorator
 
 def get_auth():
     """
@@ -28,21 +55,6 @@ def get_auth():
     url = os.getenv('SIMVUE_URL', url)
 
     return url, token
-
-def get_server_version():
-    """
-    Get the server version
-    """
-    url, _ = get_auth()
-
-    try:
-        response = requests.get(f"{url}/api/version")
-    except:
-        pass
-    else:
-        if response.status_code == 200:
-            return 1
-    return 0
 
 def get_offline_directory():
     """
