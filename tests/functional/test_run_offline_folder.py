@@ -1,6 +1,7 @@
 import configparser
 import filecmp
 import os
+import random
 import shutil
 import time
 import unittest
@@ -11,10 +12,10 @@ from simvue.sender import sender
 import common
 
 
-class TestRunOfflineMetadata(unittest.TestCase):
-    def test_run_metadata(self):
+class TestRunOfflineFolder(unittest.TestCase):
+    def test_basic_run_folder(self):
         """
-        Create a run with metadata, upload it & check that it exists
+        Check that a folder metadata can be specified in offline mode
         """
         common.update_config()
         try:
@@ -24,17 +25,18 @@ class TestRunOfflineMetadata(unittest.TestCase):
 
         name = "test-%s" % str(uuid.uuid4())
         folder = "/test-%s" % str(uuid.uuid4())
-        metadata = {"a": "string", "b": 1, "c": 2.5}
+        metadata = {str(uuid.uuid4()): 100 * random.random()}
         run = Run("offline")
-        run.init(name, metadata=metadata, folder=folder)
+        run.init(name, folder=folder)
+        run.set_folder_details(path=folder, metadata=metadata)
         run.close()
 
         sender()
 
         client = Client()
-        data = client.get_runs([f"name == {name}"], metadata=True)
+        data = client.get_folders([f"path == {folder}"])
         self.assertEqual(len(data), 1)
-        self.assertEqual(name, data[0]["name"])
+        self.assertEqual(folder, data[0]["path"])
         self.assertEqual(metadata, data[0]["metadata"])
 
         runs = client.delete_folder(folder, runs=True)
