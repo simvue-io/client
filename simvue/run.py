@@ -338,9 +338,7 @@ class Run(object):
         self._simvue = Simvue(self._name, self._uuid, None, self._mode, self._suppress_errors)
         name, self._id = self._simvue.create_run(data)
 
-        if not name:
-            return False
-        elif name is not True:
+        if name is not True:
             self._name = name
 
         if self._status == 'running':
