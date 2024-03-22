@@ -1,3 +1,4 @@
+import contextlib
 import datetime
 import hashlib
 import logging
@@ -66,22 +67,20 @@ def get_cpu_info():
     model_name = ""
     arch = ""
 
-    try:
+    with contextlib.suppress(subprocess.CalledProcessError):
         info = subprocess.check_output("lscpu").decode().strip()
         for line in info.split("\n"):
             if "Model name" in line:
                 model_name = line.split(":")[1].strip()
             if "Architecture" in line:
                 arch = line.split(":")[1].strip()
-    except:
-        # TODO: Try /proc/cpuinfo
-        pass
+    # TODO: Try /proc/cpuinfo if process fails
 
     if arch == "":
         arch = platform.machine()
 
     if model_name == "":
-        try:
+        with contextlib.suppress(subprocess.CalledProcessError):
             info = (
                 subprocess.check_output(["sysctl", "machdep.cpu.brand_string"])
                 .decode()
@@ -89,8 +88,6 @@ def get_cpu_info():
             )
             if "machdep.cpu.brand_string:" in info:
                 model_name = info.split("machdep.cpu.brand_string: ")[1]
-        except:
-            pass
 
     return model_name, arch
 
@@ -105,7 +102,7 @@ def get_gpu_info():
         )
         lines = output.split(b"\n")
         tokens = lines[1].split(b", ")
-    except:
+    except subprocess.CalledProcessError:
         return {"name": "", "driver_version": ""}
 
     return {"name": tokens[0].decode(), "driver_version": tokens[1].decode()}
@@ -146,13 +143,11 @@ def calculate_sha256(filename, is_file):
     """
     sha256_hash = hashlib.sha256()
     if is_file:
-        try:
+        with contextlib.suppress(Exception):
             with open(filename, "rb") as fd:
                 for byte_block in iter(lambda: fd.read(CHECKSUM_BLOCK_SIZE), b""):
                     sha256_hash.update(byte_block)
                 return sha256_hash.hexdigest()
-        except:
-            pass
     else:
         if isinstance(filename, str):
             sha256_hash.update(bytes(filename, "utf-8"))

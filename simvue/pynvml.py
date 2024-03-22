@@ -1049,7 +1049,7 @@ def _nvmlGetFunctionPointer(name):
     libLoadLock.acquire()
     try:
         # ensure library was loaded
-        if nvmlLib == None:
+        if nvmlLib is None:
             raise NVMLError(NVML_ERROR_UNINITIALIZED)
         try:
             _nvmlGetFunctionPointer_cache[name] = getattr(nvmlLib, name)
@@ -1310,7 +1310,7 @@ class nvmlClkMonStatus_t(Structure):
 # On Windows with the WDDM driver, usedGpuMemory is reported as None
 # Code that processes this structure should check for None, I.E.
 #
-# if (info.usedGpuMemory == None):
+# if (info.usedGpuMemory is None):
 #     # TODO handle the error
 #     pass
 # else:
@@ -2022,13 +2022,13 @@ def _LoadNvmlLibrary():
     """
     global nvmlLib
 
-    if nvmlLib == None:
+    if nvmlLib is None:
         # lock to ensure only one caller loads the library
         libLoadLock.acquire()
 
         try:
             # ensure the library still isn't loaded
-            if nvmlLib == None:
+            if nvmlLib is None:
                 try:
                     if sys.platform[:3] == "win":
                         # cdecl calling convention
@@ -2040,7 +2040,7 @@ def _LoadNvmlLibrary():
                                     "System32/nvml.dll",
                                 )
                             )
-                        except OSError as ose:
+                        except OSError:
                             # If nvml.dll is not found in System32, it should be in ProgramFiles
                             # load nvml.dll from %ProgramFiles%/NVIDIA Corporation/NVSMI/nvml.dll
                             nvmlLib = CDLL(
@@ -2052,9 +2052,9 @@ def _LoadNvmlLibrary():
                     else:
                         # assume linux
                         nvmlLib = CDLL("libnvidia-ml.so.1")
-                except OSError as ose:
+                except OSError:
                     _nvmlCheckReturn(NVML_ERROR_LIBRARY_NOT_FOUND)
-                if nvmlLib == None:
+                if nvmlLib is None:
                     _nvmlCheckReturn(NVML_ERROR_LIBRARY_NOT_FOUND)
         finally:
             # lock is always freed

@@ -1,3 +1,4 @@
+import contextlib
 import logging
 
 from .pynvml import (
@@ -20,10 +21,8 @@ def get_process_memory(processes):
     """
     rss = 0
     for process in processes:
-        try:
+        with contextlib.suppress(Exception):
             rss += process.memory_info().rss / 1024 / 1024
-        except:
-            pass
 
     return rss
 
@@ -34,10 +33,8 @@ def get_process_cpu(processes):
     """
     cpu_percent = 0
     for process in processes:
-        try:
+        with contextlib.suppress(Exception):
             cpu_percent += process.cpu_percent()
-        except:
-            pass
 
     return cpu_percent
 
@@ -64,7 +61,7 @@ def get_gpu_metrics(processes):
     """
     gpu_metrics = {}
 
-    try:
+    with contextlib.suppress(Exception):
         nvmlInit()
         device_count = nvmlDeviceGetCount()
         for i in range(device_count):
@@ -79,7 +76,5 @@ def get_gpu_metrics(processes):
                 gpu_metrics[f"resources/gpu.memory.percent.{i}"] = memory_percent
 
         nvmlShutdown()
-    except:
-        pass
 
     return gpu_metrics

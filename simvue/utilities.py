@@ -1,4 +1,6 @@
 import configparser
+import contextlib
+import importlib.util
 import logging
 import os
 import typing
@@ -11,30 +13,29 @@ logger = logging.getLogger(__name__)
 def check_extra(extra_name: str) -> typing.Callable:
     def decorator(class_func: typing.Callable) -> typing.Callable:
         def wrapper(self, *args, **kwargs) -> typing.Any:
-            if extra_name == "plot":
-                try:
-                    import matplotlib
-                    import plotly
-                except ImportError:
-                    raise RuntimeError(
-                        f"Plotting features require the '{extra_name}' extension to Simvue"
-                    )
-            elif extra_name == "torch":
-                try:
-                    import torch
-                except ImportError:
-                    raise RuntimeError(
-                        f"PyTorch features require the '{extra_name}' extension to Simvue"
-                    )
-            elif extra_name == "dataset":
-                try:
-                    import numpy
-                    import pandas
-                except ImportError:
-                    raise RuntimeError(
-                        f"Dataset features require the '{extra_name}' extension to Simvue"
-                    )
-            else:
+            if extra_name == "plot" and not all(
+                [
+                    importlib.util.find_spec("matplotlib"),
+                    importlib.util.find_spec("plotly"),
+                ]
+            ):
+                raise RuntimeError(
+                    f"Plotting features require the '{extra_name}' extension to Simvue"
+                )
+            elif extra_name == "torch" and not importlib.util.find_spec("torch"):
+                raise RuntimeError(
+                    f"PyTorch features require the '{extra_name}' extension to Simvue"
+                )
+            elif extra_name == "dataset" and not all(
+                [
+                    importlib.util.find_spec("numpy"),
+                    importlib.util.find_spec("pandas"),
+                ]
+            ):
+                raise RuntimeError(
+                    f"Dataset features require the '{extra_name}' extension to Simvue"
+                )
+            elif extra_name:
                 raise RuntimeError(f"Unrecognised extra '{extra_name}'")
             return class_func(self, *args, **kwargs)
 
@@ -99,13 +100,11 @@ def get_auth():
         os.path.join(os.path.expanduser("~"), ".simvue.ini"),
         "simvue.ini",
     ):
-        try:
+        with contextlib.suppress(Exception):
             config = configparser.ConfigParser()
             config.read(filename)
             token = config.get("server", "token")
             url = config.get("server", "url")
-        except:
-            pass
 
     # Try environment variables
     token = os.getenv("SIMVUE_TOKEN", token)
@@ -124,12 +123,10 @@ def get_offline_directory():
         os.path.join(os.path.expanduser("~"), ".simvue.ini"),
         "simvue.ini",
     ):
-        try:
+        with contextlib.suppress(Exception):
             config = configparser.ConfigParser()
             config.read(filename)
             directory = config.get("offline", "cache")
-        except:
-            pass
 
     if not directory:
         directory = os.path.join(os.path.expanduser("~"), ".simvue")
@@ -164,10 +161,9 @@ def get_expiry(token):
     Get expiry date from a JWT token
     """
     expiry = 0
-    try:
+    with contextlib.suppress(jwt.DecodeError):
         expiry = jwt.decode(token, options={"verify_signature": False})["exp"]
-    except:
-        pass
+
     return expiry
 
 

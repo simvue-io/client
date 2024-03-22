@@ -1,8 +1,8 @@
+import contextlib
 import datetime
 import json
 import logging
 import os
-import sys
 import threading
 import time
 
@@ -29,7 +29,7 @@ def update_processes(parent, processes):
                 processes.append(child)
         if parent not in processes:
             processes.append(parent)
-    except:
+    except Exception:
         return None
 
     return processes
@@ -130,7 +130,7 @@ class Worker(threading.Thread):
                         self._processes = update_processes(
                             psutil.Process(self._pid), self._processes
                         )
-                    except:
+                    except Exception:
                         self._processes = None
 
                 if self._processes is not None:
@@ -155,10 +155,9 @@ class Worker(threading.Thread):
                             data["timestamp"] = datetime.datetime.utcnow().strftime(
                                 "%Y-%m-%d %H:%M:%S.%f"
                             )
-                            try:
+                            with contextlib.suppress(Exception):
                                 self._metrics_queue.put(data, block=False)
-                            except:
-                                pass
+
                         last_metrics = time.time()
 
             # Send heartbeat if necessary
