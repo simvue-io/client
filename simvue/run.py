@@ -20,7 +20,7 @@ from .executor import Executor
 from .factory import Simvue
 from .models import RunInput
 from .serialization import Serializer
-from .utilities import get_auth, get_expiry
+from .utilities import get_auth, get_expiry, skip_if_failed
 from .worker import Worker
 
 INIT_MISSING = "initialize a run using init() first"
@@ -198,6 +198,7 @@ class Run(object):
         self._metrics_queue = None
         self._events_queue = None
         self._active = False
+        self._aborted: bool = False
         self._url, self._token = get_auth()
         self._headers = {"Authorization": f"Bearer {self._token}"}
         self._simvue = None
@@ -304,6 +305,9 @@ class Run(object):
         else:
             logger.error(message)
 
+        self._aborted = True
+
+    @skip_if_failed("_aborted", "_suppress_errors", None)
     def init(
         self,
         name=None,
@@ -389,6 +393,7 @@ class Run(object):
 
         return True
 
+    @skip_if_failed("_aborted", "_suppress_errors", None)
     def add_process(
         self,
         identifier: str,
@@ -536,6 +541,7 @@ class Run(object):
         """
         return self._id
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def reconnect(self, run_id, uid=None):
         """
         Reconnect to a run in the created state
@@ -550,12 +556,14 @@ class Run(object):
         self._simvue = Simvue(self._name, self._id, self._mode, self._suppress_errors)
         self._start(reconnect=True)
 
+    @skip_if_failed("_aborted", "_suppress_errors", None)
     def set_pid(self, pid):
         """
         Set pid of process to be monitored
         """
         self._pid = pid
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def config(
         self,
         suppress_errors=False,
@@ -595,6 +603,7 @@ class Run(object):
         if storage_id:
             self._storage_id = storage_id
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def update_metadata(self, metadata):
         """
         Add/update metadata
@@ -617,6 +626,7 @@ class Run(object):
 
         return False
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def update_tags(self, tags):
         """
         Add/update tags
@@ -635,6 +645,7 @@ class Run(object):
 
         return False
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def log_event(self, message, timestamp=None):
         """
         Write event
@@ -671,6 +682,7 @@ class Run(object):
 
         return True
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def log_metrics(self, metrics, step=None, time=None, timestamp=None):
         """
         Write metrics
@@ -721,6 +733,7 @@ class Run(object):
 
         return True
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def save(
         self,
         filename,
@@ -823,6 +836,7 @@ class Run(object):
 
         return True
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def save_directory(self, directory, category, filetype=None, preserve_path=False):
         """
         Upload a whole directory
@@ -854,6 +868,7 @@ class Run(object):
 
         return True
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def save_all(self, items, category, filetype=None, preserve_path=False):
         """
         Save the list of files and/or directories
@@ -869,6 +884,7 @@ class Run(object):
             else:
                 self._error(f"{item}: No such file or directory")
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def set_status(self, status):
         """
         Set run status
@@ -895,6 +911,7 @@ class Run(object):
 
         return False
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def close(self):
         """f
         Close the run
@@ -915,6 +932,7 @@ class Run(object):
 
         self._shutdown_event.set()
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def set_folder_details(self, path, metadata={}, tags=[], description=None):
         """
         Add metadata to the specified folder
@@ -954,6 +972,7 @@ class Run(object):
 
         return False
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def add_alerts(self, ids=None, names=None):
         """
         Add one or more existing alerts by name or id
@@ -980,6 +999,7 @@ class Run(object):
 
         return False
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def add_alert(
         self,
         name,
@@ -1086,6 +1106,7 @@ class Run(object):
 
         return False
 
+    @skip_if_failed("_aborted", "_suppress_errors", False)
     def log_alert(self, name, state):
         """
         Set the state of an alert
