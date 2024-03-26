@@ -175,6 +175,20 @@ def validate_timestamp(timestamp):
     return True
 
 
+def check_run_initialised(
+    function: typing.Callable[..., typing.Any],
+) -> typing.Callable[..., typing.Any]:
+    def _wrapper(self: "Run", *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+        if not self._simvue:
+            raise RuntimeError(
+                "Simvue Run must be initialised before calling "
+                f"'{function.__name__}'"
+            )
+        return function(self, *args, **kwargs)
+
+    return _wrapper
+
+
 class Run(object):
     """
     Track simulation details based on token and URL
@@ -184,6 +198,7 @@ class Run(object):
         self._uuid = str(uuid.uuid4())
         self._mode = mode
         self._name = None
+        self._worker = None
         self._executor = Executor(self)
         self._id = None
         self._suppress_errors = False
@@ -595,6 +610,7 @@ class Run(object):
         if storage_id:
             self._storage_id = storage_id
 
+    @check_run_initialised
     def update_metadata(self, metadata):
         """
         Add/update metadata
@@ -635,6 +651,7 @@ class Run(object):
 
         return False
 
+    @check_run_initialised
     def log_event(self, message, timestamp=None):
         """
         Write event
@@ -671,6 +688,7 @@ class Run(object):
 
         return True
 
+    @check_run_initialised
     def log_metrics(self, metrics, step=None, time=None, timestamp=None):
         """
         Write metrics
@@ -721,6 +739,7 @@ class Run(object):
 
         return True
 
+    @check_run_initialised
     def save(
         self,
         filename,
@@ -823,6 +842,7 @@ class Run(object):
 
         return True
 
+    @check_run_initialised
     def save_directory(self, directory, category, filetype=None, preserve_path=False):
         """
         Upload a whole directory
@@ -854,6 +874,7 @@ class Run(object):
 
         return True
 
+    @check_run_initialised
     def save_all(self, items, category, filetype=None, preserve_path=False):
         """
         Save the list of files and/or directories
@@ -869,6 +890,7 @@ class Run(object):
             else:
                 self._error(f"{item}: No such file or directory")
 
+    @check_run_initialised
     def set_status(self, status):
         """
         Set run status
@@ -915,6 +937,7 @@ class Run(object):
 
         self._shutdown_event.set()
 
+    @check_run_initialised
     def set_folder_details(self, path, metadata={}, tags=[], description=None):
         """
         Add metadata to the specified folder
@@ -954,6 +977,7 @@ class Run(object):
 
         return False
 
+    @check_run_initialised
     def add_alerts(self, ids=None, names=None):
         """
         Add one or more existing alerts by name or id
@@ -980,6 +1004,7 @@ class Run(object):
 
         return False
 
+    @check_run_initialised
     def add_alert(
         self,
         name,
@@ -1086,6 +1111,7 @@ class Run(object):
 
         return False
 
+    @check_run_initialised
     def log_alert(self, name, state):
         """
         Set the state of an alert
