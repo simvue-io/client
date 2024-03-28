@@ -396,7 +396,6 @@ class Run(object):
         executable: typing.Optional[str] = None,
         script: typing.Optional[str] = None,
         input_file: typing.Optional[str] = None,
-        print_stdout: bool = False,
         completion_callback: typing.Optional[
             typing.Callable[[int, int, str], None]
         ] = None,
@@ -445,8 +444,6 @@ class Run(object):
         input_file : str | None, optional
             the input file to run, note this only work if the input file is not an option, if this is the case
             you should provide it as such and perform the upload manually, by default None
-        print_stdout : bool, optional
-            print output of command to the terminal, default is False
         completion_callback : typing.Callable | None, optional
             callback to run when process terminates
         env : typing.Dict[str, str], optional
@@ -490,7 +487,6 @@ class Run(object):
             executable=executable,
             script=script,
             input_file=input_file,
-            print_stdout=print_stdout,
             completion_callback=completion_callback,
             env=env,
             **cmd_kwargs,

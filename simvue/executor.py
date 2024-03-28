@@ -31,7 +31,7 @@ class Executor:
     being used to set the relevant metadata within the Simvue run itself.
     """
 
-    def __init__(self, simvue_runner: "simvue.Run", keep_logs: bool = False) -> None:
+    def __init__(self, simvue_runner: "simvue.Run", keep_logs: bool = True) -> None:
         """Initialise an instance of the Simvue executor attaching it to a Run.
 
         Parameters
@@ -57,7 +57,6 @@ class Executor:
         executable: typing.Optional[str] = None,
         script: typing.Optional[str] = None,
         input_file: typing.Optional[str] = None,
-        print_stdout: bool = False,
         env: typing.Optional[typing.Dict[str, str]] = None,
         completion_callback: typing.Optional[
             typing.Callable[[int, str, str], None]
@@ -95,8 +94,6 @@ class Executor:
         ----------
         identifier : str
             A unique identifier for this process
-        print_stdout : bool, optional
-            print output of command to stdout
         executable : str | None, optional
             the main executable for the command, if not specified this is taken to be the first
             positional argument, by default None
@@ -140,36 +137,17 @@ class Executor:
             run_on_exit: typing.Optional[
                 typing.Callable[[int, int, str], None]
             ] = completion_callback,
-            print_out: bool = print_stdout,
             environment: typing.Optional[typing.Dict[str, str]] = env,
         ) -> None:
-            _logger = logging.getLogger(proc_id)
             with open(f"{runner.name}_{proc_id}.err", "w") as err:
                 with open(f"{runner.name}_{proc_id}.out", "w") as out:
                     _result = subprocess.Popen(
                         command,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                        stdout=out,
+                        stderr=err,
                         universal_newlines=True,
                         env=environment,
                     )
-
-                    while True:
-                        _std_out_line = _result.stdout.readline()
-                        _std_err_line = _result.stderr.readline()
-
-                        if _std_out_line:
-                            out.write(_std_out_line)
-                            if print_out:
-                                _logger.info(_std_out_line)
-
-                        if _std_err_line:
-                            err.write(_std_err_line)
-                            if print_out:
-                                _logger.error(_std_err_line)
-
-                        if not _std_err_line and not _std_out_line:
-                            break
 
             _status_code = _result.wait()
 
