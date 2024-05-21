@@ -6,6 +6,7 @@ import inspect
 import tempfile
 import uuid
 import pathlib
+import os
 import concurrent.futures
 import random
 
@@ -14,6 +15,40 @@ import simvue.client as sv_cl
 
 if typing.TYPE_CHECKING:
     from .conftest import CountingLogHandler
+
+
+@pytest.fixture(scope="session")
+def create_project_directories() -> (
+    typing.Generator[tuple[list[pathlib.Path], list[pathlib.Path]], None, None]
+):
+    N_DIRECTORIES: int = 5
+    N_FILES_PER_LEVEL: int = 2
+    N_LEVELS: int = 3
+
+    with tempfile.TemporaryDirectory() as tempd:
+        for d in range(N_DIRECTORIES):
+            subdirectories: list[str] = [f"parent_{d}"] + [f"dir_{i}" for i in range(N_LEVELS)]
+            os.makedirs(os.path.join(tempd, *subdirectories), exist_ok=True)
+            directories: list[pathlib.Path] = []
+            files: list[pathlib.Path] = []
+
+            for i, _ in enumerate(subdirectories):
+                for j in range(N_FILES_PER_LEVEL):
+                    out_name = pathlib.Path(tempd).joinpath(
+                        *subdirectories[: i + 1], f"test_file_{j}.txt"
+                    )
+                    if j == 0:
+                        out_name.touch()
+                        continue
+
+                    with open(
+                        out_name,
+                        "w",
+                    ) as out_f:
+                        out_f.write(f"test data entry file {j}")
+                    files.append(out_name)
+            directories.append(pathlib.Path(tempd).joinpath(f"parent_{d}"))
+        yield directories, files
 
 
 @pytest.mark.run
@@ -305,52 +340,147 @@ def test_set_folder_details() -> None:
 
 
 @pytest.mark.run
-@pytest.mark.parametrize("valid_mimetype", (True, False), ids=("valid_mime", "invalid_mime"))
-@pytest.mark.parametrize("preserve_path", (True, False), ids=("preserve_path", "modified_path"))
+@pytest.mark.parametrize(
+    "mimetype",
+    ("text/plain", None, "text/text"),
+    ids=("valid_mime", "unspecified", "invalid_mime"),
+)
+@pytest.mark.parametrize(
+    "preserve_path", (True, False), ids=("preserve_path", "modified_path")
+)
 @pytest.mark.parametrize("name", ("test_file", None), ids=("named", "nameless"))
-@pytest.mark.parametrize("allow_pickle", (True, False), ids=("pickled", "unpickled"))
 @pytest.mark.parametrize("empty_file", (True, False), ids=("empty", "content"))
 def test_save_file(
     create_plain_run: typing.Tuple[sv_run.Run, dict],
-    valid_mimetype: bool,
+    mimetype: typing.Optional[str],
     preserve_path: bool,
     name: typing.Optional[str],
-    allow_pickle: bool,
     empty_file: bool,
-    capfd
+    create_project_directories,
+    capfd,
 ) -> None:
     simvue_run, _ = create_plain_run
-    file_type: str = 'text/plain' if valid_mimetype else 'text/text'
-    with tempfile.TemporaryDirectory() as tempd:
-        with open(
-            (
-                out_name := pathlib.Path(tempd).joinpath("test_file.txt")Hm
-            ),
-            "w",
-        ) as out_f:
-            out_f.write("test data entry" if not empty_file else "")
-        
-        if valid_mimetype:
+    _, files = create_project_directories
+
+    if not mimetype or mimetype == "text/plain":
+        simvue_run.save_file(
+            files[0 if empty_file else 1],
+            category="input",
+            filetype=mimetype,
+            preserve_path=preserve_path,
+            name=name,
+        )
+    else:
+        with pytest.raises(RuntimeError):
             simvue_run.save_file(
-                out_name,
+                files[0 if empty_file else 1],
                 category="input",
-                filetype=file_type,
+                filetype=mimetype,
                 preserve_path=preserve_path,
-                name=name,
-            )
-        else:
-            with pytest.raises(RuntimeError):
-                simvue_run.save_file(
-                    out_name,
-                    category="input",
-                    filetype=file_type,
-                    preserve_path=preserve_path
                 )
             return
-        
+
         variable = capfd.readouterr()
         with capfd.disabled():
-            if empty_file:
-                assert variable.out == "WARNING: saving zero-sized files not currently supported\n"
+            # If MIME type is invalid the code will never reach this warning
+            if empty_file and mimetype != "text/text":
+                assert (
+                    variable.out
+                    == "WARNING: saving zero-sized files not currently supported\n"
+                )
 
 
+@pytest.mark.run
+@pytest.mark.parametrize("object_type", ("DataFrame", "ndarray"))
+def test_save_object(
+    create_plain_run: typing.Tuple[sv_run.Run, dict], object_type: str
+) -> None:
+    simvue_run, _ = create_plain_run
+
+    if object_type == "DataFrame":
+        try:
+            from pandas import DataFrame
+        except ImportError:
+            pytest.skip("Pandas is not installed")
+        save_obj = DataFrame({"x": [1, 2, 3, 4], "y": [2, 4, 6, 8]})
+    elif object_type == "ndarray":
+        try:
+            from numpy import array
+        except ImportError:
+            pytest.skip("Numpy is not installed")
+        save_obj = array([1, 2, 3, 4])
+    simvue_run.save_object(save_obj, "input", f"test_object_{object_type}")
+
+
+@pytest.mark.run
+@pytest.mark.parametrize(
+    "mimetype",
+    ("text/plain", None, "text/text"),
+    ids=("valid_mime", "unspecified", "invalid_mime"),
+)
+@pytest.mark.parametrize(
+    "preserve_path", (True, False), ids=("preserve_path", "modified_path")
+)
+def test_save_directory(
+    create_plain_run: typing.Tuple[sv_run.Run, dict],
+    mimetype: typing.Optional[str],
+    preserve_path: bool,
+    create_project_directories
+) -> None:
+    simvue_run, _ = create_plain_run
+    directories, _ = create_project_directories
+
+    if not mimetype or mimetype == "text/plain":
+        simvue_run.save_directory(
+            directories[0],
+            category="input",
+            contents_filetype=mimetype,
+            preserve_path=preserve_path,
+        )
+    else:
+        with pytest.raises(RuntimeError):
+            simvue_run.save_directory(
+                directories[0],
+                category="input",
+                contents_filetype=mimetype,
+                preserve_path=preserve_path,
+            )
+
+
+@pytest.mark.run
+@pytest.mark.parametrize(
+    "mimetype",
+    ("text/plain", None, "text/text"),
+    ids=("valid_mime", "unspecified", "invalid_mime"),
+)
+@pytest.mark.parametrize(
+    "preserve_path", (True, False), ids=("preserve_path", "modified_path")
+)
+def test_save_all(
+    create_plain_run: typing.Tuple[sv_run.Run, dict],
+    mimetype: typing.Optional[str],
+    preserve_path: bool,
+    create_project_directories
+) -> None:
+    simvue_run, _ = create_plain_run
+    directories, files = create_project_directories
+
+    # Cherry pick some files and some directories
+    save_files = files[len(files) // 2:]
+    save_directories = directories[len(directories) // 2:]
+
+    if not mimetype or mimetype == "text/plain":
+        simvue_run.save_all(
+            save_files + save_directories,
+            category="input",
+            contents_filetype=mimetype,
+            preserve_path=preserve_path,
+        )
+    else:
+        with pytest.raises(RuntimeError):
+            simvue_run.save_directory(
+                save_files + save_directories,
+                category="input",
+                contents_filetype=mimetype,
+                preserve_path=preserve_path,
+            )

@@ -51,7 +51,6 @@ from .utilities import (
 if typing.TYPE_CHECKING:
     from .factory.proxy import SimvueBaseClass
     from .factory.dispatch import DispatcherBaseClass
-    from .types import DeserializedContent
 
 UPLOAD_TIMEOUT: int = 30
 HEARTBEAT_INTERVAL: int = 60
@@ -935,10 +934,9 @@ class Run:
         self,
         obj: typing.Any,
         category: typing.Literal["input", "output", "code"],
-        name: typing.Optional[str] = None,
+        name: str,
         allow_pickle: bool = False,
     ) -> bool:
-        obj: DeserializedContent
         serialized = serialize_object(obj, allow_pickle)
 
         if not serialized or not (pickled := serialized[0]):
@@ -957,11 +955,13 @@ class Run:
             "checksum": calculate_sha256(pickled, False),
             "originalPath": "",
             "size": sys.getsizeof(pickled),
-            "name": name,
             "run": self._name,
             "category": category,
             "storage": self._storage_id,
         }
+
+        if name:
+            data["name"] = name
 
         # Register file
         return self._simvue is not None and self._simvue.save_file(data) is not None
@@ -980,7 +980,7 @@ class Run:
 
         Parameters
         ----------
-        filename : pydantic.FilePath
+        filename : str
             path to the file to upload
         category : Literal['input', 'output', 'code']
             category of file with respect to this run
@@ -1048,6 +1048,7 @@ class Run:
             return True
 
         # Register file
+        logger.debug(f"Saving file '{data['originalPath']}'")
         return self._simvue.save_file(data) is not None
 
     @skip_if_failed("_aborted", "_suppress_errors", False)
@@ -1056,33 +1057,44 @@ class Run:
         self,
         directory: pydantic.DirectoryPath,
         category: typing.Literal["output", "input", "code"],
-        filetype: typing.Optional[str] = None,
+        contents_filetype: typing.Optional[str] = None,
         preserve_path: bool = False,
     ) -> bool:
-        """
-        Upload a whole directory
+        """Upload contents of a directory
+
+        Parameters
+        ----------
+        directory : str
+            path of directory from which to extract contents
+        category : Literal['input', 'output', 'code']
+            category of files with respect to this run
+        contents_filetype : typing.Optional[str], optional
+            the MIME file type of all matching files else this is deduced on
+            a per file basis, by default None
+        preserve_path : bool, optional
+            whether to preserve the path during storage, by default False
+
+        Returns
+        -------
+        bool
+            if the upload of all files was successful
         """
         if self._mode == "disabled":
             return True
 
         if not self._simvue:
-            self._error("Cannot save directory, run not inirialised")
+            self._error("Cannot save directory, run not initialised")
             return False
-
-        if filetype:
-            mimetypes_valid = []
-            mimetypes.init()
-            for _, value in mimetypes.types_map.items():
-                mimetypes_valid.append(value)
-
-            if filetype not in mimetypes_valid:
-                self._error("Invalid MIME type specified")
-                return False
 
         for dirpath, _, filenames in directory.walk():
             for filename in filenames:
-                if (full_path := dirpath.joinpath(filename)).is_file():
-                    self.save_file(full_path, category, filetype, preserve_path)
+                # If any file fails to upload then abort
+                if (
+                    full_path := dirpath.joinpath(filename)
+                ).is_file() and not self.save_file(
+                    full_path, category, contents_filetype, preserve_path
+                ):
+                    return False
 
         return True
 
@@ -1092,20 +1104,40 @@ class Run:
         self,
         items: list[typing.Union[pydantic.FilePath, pydantic.DirectoryPath]],
         category: typing.Literal["input", "output", "code"],
-        filetype: typing.Optional[str] = None,
+        contents_filetype: typing.Optional[str] = None,
         preserve_path: bool = False,
     ) -> bool:
-        """
-        Save the list of files and/or directories
+        """Save the list of files and/or directories
+
+        Parameters
+        ----------
+        items : list[str]
+            paths to files/directories to upload
+        category : Literal['input', 'output', 'code']
+            category of files with respect to this run
+        contents_filetype : typing.Optional[str], optional
+            the MIME file type of all matching files else this is deduced on
+            a per file basis, by default None
+        preserve_path : bool, optional
+            whether to preserve the path during storage, by default False
+
+        Returns
+        -------
+        bool
+            whether the upload was successful
         """
         if self._mode == "disabled":
             return True
 
         for item in items:
             if item.is_file():
-                save_file = self.save(f"{item}", category, filetype, preserve_path)
+                save_file = self.save_file(
+                    item, category, contents_filetype, preserve_path
+                )
             elif item.is_dir():
-                save_file = self.save_directory(item, category, filetype, preserve_path)
+                save_file = self.save_directory(
+                    item, category, contents_filetype, preserve_path
+                )
             else:
                 self._error(f"{item}: No such file or directory")
                 save_file = False
