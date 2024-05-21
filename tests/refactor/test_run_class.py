@@ -3,7 +3,9 @@ import time
 import typing
 import contextlib
 import inspect
+import tempfile
 import uuid
+import pathlib
 import concurrent.futures
 import random
 
@@ -273,7 +275,7 @@ def test_suppressed_errors(
                 name="test_suppressed_errors",
                 folder="/simvue_unit_testing",
                 tags=["simvue_client_unit_tests"],
-                retention_period="1 hour"
+                retention_period="1 hour",
             )
 
         run.config(suppress_errors=True)
@@ -286,17 +288,69 @@ def test_suppressed_errors(
         assert setup_logging.counts[0] == len(decorated_funcs) + 1
     else:
         assert setup_logging.counts[0] == len(decorated_funcs)
-    
+
 
 @pytest.mark.run
 def test_set_folder_details() -> None:
     with sv_run.Run() as run:
-        folder_name: str ="/simvue_unit_test_folder"
+        folder_name: str = "/simvue_unit_test_folder"
         description: str = "test description"
         tags: list[str] = ["simvue_client_unit_tests", "test_set_folder_details"]
         run.init(folder=folder_name)
         run.set_folder_details(path=folder_name, tags=tags, description=description)
-    
+
     client = sv_cl.Client()
     assert (folder := client.get_folders([f"path == {folder_name}"])[0])["tags"] == tags
     assert folder["description"] == description
+
+
+@pytest.mark.run
+@pytest.mark.parametrize("valid_mimetype", (True, False), ids=("valid_mime", "invalid_mime"))
+@pytest.mark.parametrize("preserve_path", (True, False), ids=("preserve_path", "modified_path"))
+@pytest.mark.parametrize("name", ("test_file", None), ids=("named", "nameless"))
+@pytest.mark.parametrize("allow_pickle", (True, False), ids=("pickled", "unpickled"))
+@pytest.mark.parametrize("empty_file", (True, False), ids=("empty", "content"))
+def test_save_file(
+    create_plain_run: typing.Tuple[sv_run.Run, dict],
+    valid_mimetype: bool,
+    preserve_path: bool,
+    name: typing.Optional[str],
+    allow_pickle: bool,
+    empty_file: bool,
+    capfd
+) -> None:
+    simvue_run, _ = create_plain_run
+    file_type: str = 'text/plain' if valid_mimetype else 'text/text'
+    with tempfile.TemporaryDirectory() as tempd:
+        with open(
+            (
+                out_name := pathlib.Path(tempd).joinpath("test_file.txt")Hm
+            ),
+            "w",
+        ) as out_f:
+            out_f.write("test data entry" if not empty_file else "")
+        
+        if valid_mimetype:
+            simvue_run.save_file(
+                out_name,
+                category="input",
+                filetype=file_type,
+                preserve_path=preserve_path,
+                name=name,
+            )
+        else:
+            with pytest.raises(RuntimeError):
+                simvue_run.save_file(
+                    out_name,
+                    category="input",
+                    filetype=file_type,
+                    preserve_path=preserve_path
+                )
+            return
+        
+        variable = capfd.readouterr()
+        with capfd.disabled():
+            if empty_file:
+                assert variable.out == "WARNING: saving zero-sized files not currently supported\n"
+
+

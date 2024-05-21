@@ -1,4 +1,5 @@
 import configparser
+import pathlib
 import os
 import uuid
 
@@ -20,9 +21,9 @@ def update_config():
         config.write(configfile)
 
 FOLDER = '/test-%s' % str(uuid.uuid4())
-FILENAME1 = str(uuid.uuid4())
-FILENAME2 = str(uuid.uuid4())
-FILENAME3 = str(uuid.uuid4())
+FILENAME1 = pathlib.Path(str(uuid.uuid4()))
+FILENAME2 = pathlib.Path(str(uuid.uuid4()))
+FILENAME3 = pathlib.Path(str(uuid.uuid4()))
 RUNNAME1 = 'test-%s' % str(uuid.uuid4())
 RUNNAME2 = 'test-%s' % str(uuid.uuid4())
 RUNNAME3 = 'test-%s' % str(uuid.uuid4())

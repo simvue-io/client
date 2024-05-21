@@ -29,7 +29,7 @@ class TestArtifactsOffline(unittest.TestCase):
         content = str(uuid.uuid4())
         with open(common.FILENAME1, 'w') as fh:
             fh.write(content)
-        run.save(common.FILENAME1, 'code')
+        run.save_file(common.FILENAME1, 'code')
 
         run.close()
 

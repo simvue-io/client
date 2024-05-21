@@ -1,4 +1,3 @@
-import os
 from simvue import Run
 import pytest
 

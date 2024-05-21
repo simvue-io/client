@@ -1,4 +1,4 @@
-from simvue.serialization import Serializer, Deserializer
+from simvue.serialization import serialize_object, deserialize_data
 import pandas as pd
 
 def test_pandas_dataframe_serialization():
@@ -8,7 +8,7 @@ def test_pandas_dataframe_serialization():
     data = {'col1': [1, 2], 'col2': [3, 4]}
     df = pd.DataFrame(data=data)
 
-    serialized, mime_type = Serializer().serialize(df)
-    df_out = Deserializer().deserialize(serialized, mime_type)
+    serialized, mime_type = serialize_object(df, False)
+    df_out = deserialize_data(serialized, mime_type, False)
 
     assert (df.equals(df_out))

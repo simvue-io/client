@@ -1,4 +1,4 @@
-from simvue.serialization import Serializer, Deserializer
+from simvue.serialization import serialize_object
 import matplotlib.pyplot as plt
 import plotly
 
@@ -10,6 +10,6 @@ def test_plotly_figure_mime_type():
     figure = plt.gcf()
     plotly_figure = plotly.tools.mpl_to_plotly(figure)
 
-    _, mime_type = Serializer().serialize(plotly_figure)
+    _, mime_type = serialize_object(plotly_figure, False)
 
     assert (mime_type == 'application/vnd.plotly.v1+json')

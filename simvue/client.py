@@ -19,7 +19,7 @@ from .converters import (
     to_dataframe,
     parse_run_set_metrics,
 )
-from .serialization import Deserializer
+from .serialization import deserialize_data
 from .types import DeserializedContent
 from .utilities import check_extra, get_auth
 
@@ -608,7 +608,7 @@ class Client:
         response = requests.get(url, timeout=DOWNLOAD_TIMEOUT)
         response.raise_for_status()
 
-        content: typing.Optional[DeserializedContent] = Deserializer().deserialize(
+        content: typing.Optional[DeserializedContent] = deserialize_data(
             response.content, mimetype, allow_pickle
         )
 

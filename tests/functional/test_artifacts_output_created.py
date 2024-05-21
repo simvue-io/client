@@ -24,7 +24,7 @@ class TestArtifactsOutputCreated(unittest.TestCase):
             fh.write(content)
 
         with self.assertRaises(Exception) as context:
-            run.save(common.FILENAME3, 'output')
+            run.save_file(common.FILENAME3, 'output')
 
         self.assertTrue('Cannot upload output files for runs in the created state' in str(context.exception))
 

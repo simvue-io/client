@@ -1,12 +1,9 @@
-import configparser
 import filecmp
 import os
 import shutil
-import time
 import unittest
 import uuid
 from simvue import Run, Client
-from simvue.sender import sender
 
 import common
 
@@ -22,7 +19,7 @@ class TestArtifacts(unittest.TestCase):
         content = str(uuid.uuid4())
         with open(common.FILENAME1, 'w') as fh:
             fh.write(content)
-        run.save(common.FILENAME1, 'code')
+        run.save_file(common.FILENAME1, 'code')
 
         run.close()
 

@@ -114,19 +114,19 @@ def setup_test_run(run: sv_run.Run, create_objects: bool):
         with tempfile.TemporaryDirectory() as tempd:
             with open((test_file := os.path.join(tempd, "test_file.txt")), "w") as out_f:
                 out_f.write("This is a test file")
-            run.save(test_file, category="input", name="test_file")
+            run.save_file(test_file, category="input", name="test_file")
             TEST_DATA["file_1"] = "test_file"
 
             with open((test_json := os.path.join(tempd, f"test_attrs_{fix_use_id}.json")), "w") as out_f:
                 json.dump(TEST_DATA, out_f, indent=2)
-            run.save(test_json, category="output", name="test_attributes")
+            run.save_file(test_json, category="output", name="test_attributes")
             TEST_DATA["file_2"] = "test_attributes"
 
-            with open((test_script := os.path.join(tempd, f"test_script.py")), "w") as out_f:
+            with open((test_script := os.path.join(tempd, "test_script.py")), "w") as out_f:
                 out_f.write(
                     "print('Hello World!')"
                 )
-            run.save(test_script, category="code", name="test_empty_file")
+            run.save_file(test_script, category="code", name="test_empty_file")
             TEST_DATA["file_3"] = "test_empty_file"
 
     time.sleep(1.)

@@ -1,5 +1,5 @@
 import torch
-from simvue.serialization import Serializer, Deserializer
+from simvue.serialization import serialize_object, deserialize_data
 
 def test_pytorch_tensor_serialization():
     """
@@ -8,7 +8,7 @@ def test_pytorch_tensor_serialization():
     torch.manual_seed(1724)
     array = torch.rand(2, 3)
 
-    serialized, mime_type = Serializer().serialize(array)
-    array_out = Deserializer().deserialize(serialized, mime_type)
+    serialized, mime_type = serialize_object(array, False)
+    array_out = deserialize_data(serialized, mime_type, False)
 
     assert (array == array_out).all()

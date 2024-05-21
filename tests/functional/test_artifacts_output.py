@@ -22,7 +22,7 @@ class TestArtifacts(unittest.TestCase):
         content = str(uuid.uuid4())
         with open(common.FILENAME3, 'w') as fh:
             fh.write(content)
-        run.save(common.FILENAME3, 'output')
+        run.save_file(common.FILENAME3, 'output')
 
         run.close()
 
