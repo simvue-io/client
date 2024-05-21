@@ -12,6 +12,7 @@ import random
 
 import simvue.run as sv_run
 import simvue.client as sv_cl
+import simvue.sender as sv_send
 
 if typing.TYPE_CHECKING:
     from .conftest import CountingLogHandler
@@ -27,7 +28,9 @@ def create_project_directories() -> (
 
     with tempfile.TemporaryDirectory() as tempd:
         for d in range(N_DIRECTORIES):
-            subdirectories: list[str] = [f"parent_{d}"] + [f"dir_{i}" for i in range(N_LEVELS)]
+            subdirectories: list[str] = [f"parent_{d}"] + [
+                f"dir_{i}" for i in range(N_LEVELS)
+            ]
             os.makedirs(os.path.join(tempd, *subdirectories), exist_ok=True)
             directories: list[pathlib.Path] = []
             files: list[pathlib.Path] = []
@@ -53,10 +56,9 @@ def create_project_directories() -> (
 
 @pytest.mark.run
 @pytest.mark.parametrize("overload_buffer", (True, False), ids=("overload", "normal"))
-def test_log_metrics(
+def test_log_metrics_online(
     overload_buffer: bool,
-    setup_logging: "CountingLogHandler",
-    mocker,
+    setup_logging: "CountingLogHandler"
 ) -> None:
     METRICS = {"a": 10, "b": 1.2}
 
@@ -116,15 +118,38 @@ def test_log_metrics(
 
 
 @pytest.mark.run
-def test_log_metrics_offline(create_test_run_offline: tuple[sv_run.Run, dict]) -> None:
+def test_log_metrics_offline(
+    create_plain_run_offline: tuple[sv_run.Run, dict],
+) -> None:
     METRICS = {"a": 10, "b": 1.2, "c": 2}
-    run, _ = create_test_run_offline
-    run.update_tags(["simvue_client_unit_tests", "test_log_metrics"])
+    run, _ = create_plain_run_offline
+    run.update_tags(["simvue_client_unit_tests", "test_log_metrics_offline"])
     run.log_metrics(METRICS)
+    time.sleep(1.0)
+    run.close()
+    assert (run_id := sv_send.sender())
+    client = sv_cl.Client()
+    _data = client.get_metric_values(
+        run_ids=[run_id],
+        metric_names=list(METRICS.keys()),
+        xaxis="step",
+        aggregate=False,
+    )
+
+    assert _data, f"No metrics returned for run '{run_id}"
+
+    with contextlib.suppress(RuntimeError):
+        client.delete_run(run._id)
+
+    assert sorted(set(METRICS.keys())) == sorted(set(_data.keys()))
+    _steps = []
+    for entry in _data.values():
+        _steps += list(i[0] for i in entry.keys())
+    _steps = set(_steps)
 
 
 @pytest.mark.run
-def test_log_events(create_test_run: tuple[sv_run.Run, dict]) -> None:
+def test_log_events_online(create_test_run: tuple[sv_run.Run, dict]) -> None:
     EVENT_MSG = "Hello world!"
     run, _ = create_test_run
     run.update_tags(["simvue_client_unit_tests", "test_log_events"])
@@ -135,12 +160,13 @@ def test_log_events(create_test_run: tuple[sv_run.Run, dict]) -> None:
 def test_log_events_offline(create_test_run_offline: tuple[sv_run.Run, dict]) -> None:
     EVENT_MSG = "Hello world!"
     run, _ = create_test_run_offline
-    run.update_tags(["simvue_client_unit_tests", "test_log_events"])
+    run.update_tags(["simvue_client_unit_tests", "test_log_events_offline"])
     run.log_event(EVENT_MSG)
+    assert sv_send.sender()
 
 
 @pytest.mark.run
-def test_update_metadata(create_test_run: tuple[sv_run.Run, dict]) -> None:
+def test_update_metadata_online(create_test_run: tuple[sv_run.Run, dict]) -> None:
     METADATA = {"a": 10, "b": 1.2, "c": "word"}
     run, _ = create_test_run
     run.update_tags(["simvue_client_unit_tests", "test_update_metadata"])
@@ -153,8 +179,9 @@ def test_update_metadata_offline(
 ) -> None:
     METADATA = {"a": 10, "b": 1.2, "c": "word"}
     run, _ = create_test_run_offline
-    run.update_tags(["simvue_client_unit_tests", "test_update_metadata"])
+    run.update_tags(["simvue_client_unit_tests", "test_update_metadata_offline"])
     run.update_metadata(METADATA)
+    assert sv_send.sender()
 
 
 @pytest.mark.run
@@ -326,7 +353,7 @@ def test_suppressed_errors(
 
 
 @pytest.mark.run
-def test_set_folder_details() -> None:
+def test_set_folder_details_online() -> None:
     with sv_run.Run() as run:
         folder_name: str = "/simvue_unit_test_folder"
         description: str = "test description"
@@ -350,7 +377,7 @@ def test_set_folder_details() -> None:
 )
 @pytest.mark.parametrize("name", ("test_file", None), ids=("named", "nameless"))
 @pytest.mark.parametrize("empty_file", (True, False), ids=("empty", "content"))
-def test_save_file(
+def test_save_file_online(
     create_plain_run: typing.Tuple[sv_run.Run, dict],
     mimetype: typing.Optional[str],
     preserve_path: bool,
@@ -377,7 +404,7 @@ def test_save_file(
                 category="input",
                 filetype=mimetype,
                 preserve_path=preserve_path,
-                )
+            )
             return
 
         variable = capfd.readouterr()
@@ -391,8 +418,76 @@ def test_save_file(
 
 
 @pytest.mark.run
+def test_set_folder_details_offline() -> None:
+    with sv_run.Run(mode="offline") as run:
+        folder_name: str = "/simvue_unit_test_folder"
+        description: str = "test description"
+        tags: list[str] = ["simvue_client_unit_tests", "test_set_folder_details_offline"]
+        run.init(folder=folder_name)
+        run.set_folder_details(path=folder_name, tags=tags, description=description)
+    assert sv_send.sender()
+    time.sleep(1)
+    client = sv_cl.Client()
+    assert (folder := client.get_folders([f"path == {folder_name}"])[0])["tags"] == tags
+    assert folder["description"] == description
+
+
+@pytest.mark.run
+@pytest.mark.parametrize(
+    "mimetype",
+    ("text/plain", None, "text/text"),
+    ids=("valid_mime", "unspecified", "invalid_mime"),
+)
+@pytest.mark.parametrize(
+    "preserve_path", (True, False), ids=("preserve_path", "modified_path")
+)
+@pytest.mark.parametrize("name", ("test_file", None), ids=("named", "nameless"))
+@pytest.mark.parametrize("empty_file", (True, False), ids=("empty", "content"))
+def test_save_file_offline(
+    create_plain_run_offline: typing.Tuple[sv_run.Run, dict],
+    mimetype: typing.Optional[str],
+    preserve_path: bool,
+    name: typing.Optional[str],
+    empty_file: bool,
+    create_project_directories,
+    capfd,
+) -> None:
+    simvue_run, _ = create_plain_run_offline
+    simvue_run.update_tags(["simvue_client_unit_tests", "test_save_file_offline"])
+    _, files = create_project_directories
+
+    if not mimetype or mimetype == "text/plain":
+        simvue_run.save_file(
+            files[0 if empty_file else 1],
+            category="input",
+            filetype=mimetype,
+            preserve_path=preserve_path,
+            name=name,
+        )
+    else:
+        with pytest.raises(RuntimeError):
+            simvue_run.save_file(
+                files[0 if empty_file else 1],
+                category="input",
+                filetype=mimetype,
+                preserve_path=preserve_path,
+            )
+            return
+
+        variable = capfd.readouterr()
+        with capfd.disabled():
+            # If MIME type is invalid the code will never reach this warning
+            if empty_file and mimetype != "text/text":
+                assert (
+                    variable.out
+                    == "WARNING: saving zero-sized files not currently supported\n"
+                )
+    assert sv_send.sender()
+
+
+@pytest.mark.run
 @pytest.mark.parametrize("object_type", ("DataFrame", "ndarray"))
-def test_save_object(
+def test_save_object_online(
     create_plain_run: typing.Tuple[sv_run.Run, dict], object_type: str
 ) -> None:
     simvue_run, _ = create_plain_run
@@ -413,6 +508,30 @@ def test_save_object(
 
 
 @pytest.mark.run
+@pytest.mark.parametrize("object_type", ("DataFrame", "ndarray"))
+def test_save_object_offline(
+    create_plain_run_offline: typing.Tuple[sv_run.Run, dict], object_type: str
+) -> None:
+    simvue_run, _ = create_plain_run_offline
+    simvue_run.update_tags(["simvue_client_unit_tests", "test_save_object_offline"])
+
+    if object_type == "DataFrame":
+        try:
+            from pandas import DataFrame
+        except ImportError:
+            pytest.skip("Pandas is not installed")
+        save_obj = DataFrame({"x": [1, 2, 3, 4], "y": [2, 4, 6, 8]})
+    elif object_type == "ndarray":
+        try:
+            from numpy import array
+        except ImportError:
+            pytest.skip("Numpy is not installed")
+        save_obj = array([1, 2, 3, 4])
+    simvue_run.save_object(save_obj, "input", f"test_object_{object_type}")
+    assert sv_send.sender()
+
+
+@pytest.mark.run
 @pytest.mark.parametrize(
     "mimetype",
     ("text/plain", None, "text/text"),
@@ -421,11 +540,11 @@ def test_save_object(
 @pytest.mark.parametrize(
     "preserve_path", (True, False), ids=("preserve_path", "modified_path")
 )
-def test_save_directory(
+def test_save_directory_online(
     create_plain_run: typing.Tuple[sv_run.Run, dict],
     mimetype: typing.Optional[str],
     preserve_path: bool,
-    create_project_directories
+    create_project_directories,
 ) -> None:
     simvue_run, _ = create_plain_run
     directories, _ = create_project_directories
@@ -456,18 +575,55 @@ def test_save_directory(
 @pytest.mark.parametrize(
     "preserve_path", (True, False), ids=("preserve_path", "modified_path")
 )
-def test_save_all(
+def test_save_directory_offline(
+    create_plain_run_offline: typing.Tuple[sv_run.Run, dict],
+    mimetype: typing.Optional[str],
+    preserve_path: bool,
+    create_project_directories,
+) -> None:
+    simvue_run, _ = create_plain_run_offline
+    simvue_run.update_tags(["simvue_client_unit_tests", "test_save_directory_offline"])
+    directories, _ = create_project_directories
+
+    if not mimetype or mimetype == "text/plain":
+        simvue_run.save_directory(
+            directories[0],
+            category="input",
+            contents_filetype=mimetype,
+            preserve_path=preserve_path,
+        )
+    else:
+        with pytest.raises(RuntimeError):
+            simvue_run.save_directory(
+                directories[0],
+                category="input",
+                contents_filetype=mimetype,
+                preserve_path=preserve_path,
+            )
+    assert sv_send.sender()
+
+
+@pytest.mark.run
+@pytest.mark.parametrize(
+    "mimetype",
+    ("text/plain", None, "text/text"),
+    ids=("valid_mime", "unspecified", "invalid_mime"),
+)
+@pytest.mark.parametrize(
+    "preserve_path", (True, False), ids=("preserve_path", "modified_path")
+)
+def test_save_all_online(
     create_plain_run: typing.Tuple[sv_run.Run, dict],
     mimetype: typing.Optional[str],
     preserve_path: bool,
-    create_project_directories
+    create_project_directories,
 ) -> None:
     simvue_run, _ = create_plain_run
     directories, files = create_project_directories
 
     # Cherry pick some files and some directories
-    save_files = files[len(files) // 2:]
-    save_directories = directories[len(directories) // 2:]
+    save_files = files[len(files) // 2 :]
+    save_directories = directories[len(directories) // 2 :]
 
     if not mimetype or mimetype == "text/plain":
         simvue_run.save_all(
@@ -484,3 +640,49 @@ def test_save_all(
                 contents_filetype=mimetype,
                 preserve_path=preserve_path,
             )
+
+
+@pytest.mark.run
+@pytest.mark.parametrize(
+    "mimetype",
+    ("text/plain", None, "text/text"),
+    ids=("valid_mime", "unspecified", "invalid_mime"),
+)
+@pytest.mark.parametrize(
+    "preserve_path", (True, False), ids=("preserve_path", "modified_path")
+)
+def test_save_all_offline(
+    create_plain_run_offline: typing.Tuple[sv_run.Run, dict],
+    mimetype: typing.Optional[str],
+    preserve_path: bool,
+    create_project_directories,
+) -> None:
+    simvue_run, _ = create_plain_run_offline
+    simvue_run.update_tags(["simvue_client_unit_tests", "test_save_all_offline"])
+    directories, files = create_project_directories
+
+    # Cherry pick some files and some directories
+    save_files = files[len(files) // 2 :]
+    save_directories = directories[len(directories) // 2 :]
+
+    if not mimetype or mimetype == "text/plain":
+        simvue_run.save_all(
+            save_files + save_directories,
+            category="input",
+            contents_filetype=mimetype,
+            preserve_path=preserve_path,
+        )
+    else:
+        with pytest.raises(RuntimeError):
+            simvue_run.save_directory(
+                save_files + save_directories,
+                category="input",
+                contents_filetype=mimetype,
+                preserve_path=preserve_path,
+            )
+    assert sv_send.sender()
+
+
+@pytest.mark.run
+def test_create_alerts(create_plain_run: typing.Tuple[sv_run.Run, dict]) -> None:
+    pass

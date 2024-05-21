@@ -1,4 +1,4 @@
-import glob
+import typing
 import json
 import logging
 import os
@@ -77,91 +77,78 @@ def get_json(filename, run_id=None, artifact=False):
     return data
 
 
-def sender() -> str:
-    """
-    Asynchronous upload of runs to Simvue server
+def sender() -> typing.Optional[str]:
+    """Asynchronous upload of runs to Simvue server
+
+    Returns
+    -------
+    str | None
+        identifier of the created run if applicable
     """
     directory = get_offline_directory()
 
+    logger.debug(f"Using offline directory '{directory}'")
+
     # Clean up old runs after waiting 5 mins
-    runs = glob.glob(f"{directory}/*/sent")
+    runs = directory.glob("*/sent")
     run_id = None
 
     for run in runs:
-        id = run.split("/")[len(run.split("/")) - 2]
-        logger.info("Cleaning up directory with id %s", id)
+        logger.info("Cleaning up directory with id %s", run.parent.name)
 
         if time.time() - os.path.getmtime(run) > 300:
             try:
-                shutil.rmtree(f"{directory}/{id}")
+                shutil.rmtree(run.parent)
             except Exception:
-                logger.error("Got exception trying to cleanup run in directory %s", id)
+                logger.error(
+                    "Got exception trying to cleanup run in directory %s",
+                    run.parent.name,
+                )
 
     # Deal with runs in the created, running or a terminal state
-    runs = (
-        glob.glob(f"{directory}/*/created")
-        + glob.glob(f"{directory}/*/running")
-        + glob.glob(f"{directory}/*/completed")
-        + glob.glob(f"{directory}/*/failed")
-        + glob.glob(f"{directory}/*/terminated")
+    runs = list(
+        path.resolve()
+        for path in directory.glob("*/*")
+        if path.name in ("created", "running", "completed", "failed", "terminated")
     )
 
+    if not runs:
+        logger.info("No runs found locally")
+        return None
+
+    logger.debug(f"Found {len(runs)} run{'s' if len(runs) != 1 else ''} locally")
+
     for run in runs:
-        status = None
-        if run.endswith("running"):
-            status = "running"
-        if run.endswith("created"):
-            status = "created"
-        elif run.endswith("completed"):
-            status = "completed"
-        elif run.endswith("failed"):
-            status = "failed"
-        elif run.endswith("terminated"):
-            status = "terminated"
+        status = run.name
+        current = run.parent
 
-        current = (
-            run.replace("/running", "")
-            .replace("/completed", "")
-            .replace("/failed", "")
-            .replace("/terminated", "")
-            .replace("/created", "")
-        )
-
-        if os.path.isfile(f"{current}/sent"):
-            if status == "running":
-                remove_file(f"{current}/running")
-            elif status == "completed":
-                remove_file(f"{current}/completed")
-            elif status == "failed":
-                remove_file(f"{current}/failed")
-            elif status == "terminated":
-                remove_file(f"{current}/terminated")
-            elif status == "created":
-                remove_file(f"{current}/created")
+        if current.joinpath("sent").exists():
+            logger.debug(f"Run {run} already sent skipping.")
+            remove_file(run)
             continue
 
-        id = run.split("/")[len(run.split("/")) - 2]
-
-        run_init = get_json(f"{current}/run.json")
-        start_time = os.path.getctime(f"{current}/run.json")
+        run_init = get_json(run_json := current.joinpath("run.json"))
+        start_time = os.path.getctime(run_json)
 
         if run_init["name"]:
-            logger.info("Considering run with name %s and id %s", run_init["name"], id)
+            logger.info(
+                "Considering run with name %s and id %s", run_init["name"], current.name
+            )
         else:
-            logger.info("Considering run with no name yet and id %s", id)
+            logger.info("Considering run with no name yet and id %s", current.name)
 
         # Create run if it hasn't previously been created
-        created_file = f"{current}/init"
+        created_file = current.joinpath("init")
         name = None
-        if not os.path.isfile(created_file):
-            remote = Remote(run_init["name"], id, suppress_errors=False)
+        if not created_file.is_file():
+            remote = Remote(run_init["name"], current.name, suppress_errors=False)
 
             # Check token
             remote.check_token()
 
             name, run_id = remote.create_run(run_init)
             if name:
-                logger.info("Creating run with name %s and id %s", name, id)
+                logger.info("Creating run with name %s and id %s", name, current.name)
                 run_init = add_name(name, run_init, f"{current}/run.json")
                 set_details(name, run_id, created_file)
             else:
@@ -175,31 +162,33 @@ def sender() -> str:
             # Check token
             remote.check_token()
 
+        heartbeat_filename = current.joinpath("heartbeat")
+
         if status == "running":
             # Check for recent heartbeat
-            heartbeat_filename = f"{current}/heartbeat"
-            if os.path.isfile(heartbeat_filename):
+            if heartbeat_filename.is_file():
                 mtime = os.path.getmtime(heartbeat_filename)
                 if time.time() - mtime > 180:
                     status = "lost"
 
             # Check for no recent heartbeat
-            if not os.path.isfile(heartbeat_filename):
+            if not heartbeat_filename.is_file():
                 if time.time() - start_time > 180:
                     status = "lost"
 
         # Handle lost runs
         if status == "lost":
             logger.info(
-                "Changing status to lost, name %s and id %s", run_init["name"], id
+                "Changing status to lost, name %s and id %s",
+                run_init["name"],
+                current.name,
             )
             status = "lost"
-            create_file(f"{current}/lost")
-            remove_file(f"{current}/running")
+            create_file(current.joinpath("lost"))
+            remove_file(current.joinpath("running"))
 
         # Send heartbeat if the heartbeat file was touched recently
-        heartbeat_filename = f"{current}/heartbeat"
-        if os.path.isfile(heartbeat_filename):
+        if heartbeat_filename.is_file():
             if (
                 status == "running"
                 and time.time() - os.path.getmtime(heartbeat_filename) < 120
@@ -208,41 +197,44 @@ def sender() -> str:
                 remote.send_heartbeat()
 
         # Upload metrics, events, files & metadata as necessary
-        files = sorted(glob.glob(f"{current}/*"), key=os.path.getmtime)
+        files = sorted(current.glob("*"), key=os.path.getmtime)
         updates = 0
         for record in files:
-            if (
-                record.endswith("/run.json")
-                or record.endswith("/running")
-                or record.endswith("/completed")
-                or record.endswith("/failed")
-                or record.endswith("/terminated")
-                or record.endswith("/lost")
-                or record.endswith("/sent")
-                or record.endswith("-proc")
+            if any(
+                record.name.endswith(i)
+                for i in (
+                    "run.json",
+                    "running",
+                    "completed",
+                    "failed",
+                    "terminated",
+                    "lost",
+                    "sent",
+                    "-proc",
+                )
             ):
                 continue
 
             rename = False
 
             # Handle metrics
-            if "/metrics-" in record:
-                logger.info("Sending metrics for run %s", run_init["name"])
+            if "/metrics-" in f"{record}":
                 data = get_json(record, run_id)
+                logger.info("Sending metrics for run %s: %s", run_init["name"], data)
                 if remote.send_metrics(msgpack.packb(data, use_bin_type=True)):
                     rename = True
 
             # Handle events
-            if "/events-" in record:
-                logger.info("Sending events for run %s", run_init["name"])
+            if "/events-" in f"{record}":
                 data = get_json(record, run_id)
+                logger.info("Sending events for run %s: %s", run_init["name"], data)
                 if remote.send_event(msgpack.packb(data, use_bin_type=True)):
                     rename = True
 
             # Handle updates
-            if "/update-" in record:
-                logger.info("Sending update for run %s", run_init["name"])
+            if "/update-" in f"{record}":
                 data = get_json(record, run_id)
+                logger.info("Sending update for run %s: %s", run_init["name"], data)
                 if remote.update(data):
                     for item in data:
                         if item == "status" and data[item] in (
@@ -255,21 +247,26 @@ def sender() -> str:
                     rename = True
 
             # Handle folders
-            if "/folder-" in record:
-                logger.info("Sending folder details for run %s", run_init["name"])
-                if remote.set_folder_details(get_json(record, run_id)):
+            if "/folder-" in f"{record}":
+                data = get_json(record, run_id)
+                logger.info("Sending folder details for run %s", run_init["name"], data)
+                if remote.set_folder_details(data):
                     rename = True
 
             # Handle alerts
-            if "/alert-" in record:
-                logger.info("Sending alert details for run %s", run_init["name"])
-                if remote.add_alert(get_json(record, run_id)):
+            if "/alert-" in f"{record}":
+                data = get_json(record, run_id)
+                logger.info(
+                    "Sending alert details for run %s: %s", run_init["name"], data
+                )
+                if remote.add_alert(data):
                     rename = True
 
             # Handle files
-            if "/file-" in record:
-                logger.info("Saving file for run %s", run_init["name"])
-                if remote.save_file(get_json(record, run_id, True)):
+            if "/file-" in f"{record}":
+                data = get_json(record, run_id, True)
+                logger.info("Saving file for run %s: %s", run_init["name"], data)
+                if remote.save_file(data):
                     rename = True
 
             # Rename processed files
@@ -282,9 +279,9 @@ def sender() -> str:
             logger.info("Finished sending run %s", run_init["name"])
             data = {"id": run_id, "status": status}
             if remote.update(data):
-                create_file(f"{current}/sent")
-                remove_file(f"{current}/{status}")
+                create_file(current.joinpath("sent"))
+                remove_file(current.joinpath(status))
         elif updates == 0 and status == "lost":
             logger.info("Finished sending run %s as it was lost", run_init["name"])
-            create_file(f"{current}/sent")
+            create_file(current.joinpath("sent"))
     return run_id

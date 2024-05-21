@@ -1,4 +1,3 @@
-import glob
 import json
 import logging
 import os
@@ -27,23 +26,24 @@ class Offline(SimvueBaseClass):
         self, name: typing.Optional[str], uniq_id: str, suppress_errors: bool = True
     ) -> None:
         super().__init__(name, uniq_id, suppress_errors)
+        os.makedirs(self.directory, exist_ok=True)
 
-        self._directory: str = os.path.join(get_offline_directory(), self._uuid)
-
-        os.makedirs(self._directory, exist_ok=True)
+    @property
+    def directory(self) -> pathlib.Path:
+        return get_offline_directory().joinpath(self._uuid)
 
     @skip_if_failed("_aborted", "_suppress_errors", None)
-    def _write_json(self, filename: str, data: dict[str, typing.Any]) -> None:
+    def _write_json(self, filename: pathlib.Path, data: dict[str, typing.Any]) -> None:
         """
         Write JSON to file
         """
-        if not os.path.isdir(os.path.dirname(filename)):
+        if not os.path.isdir(filename.parent):
             self._error(
                 f"Cannot write file '{filename}', parent directory does not exist"
             )
 
         try:
-            with open(filename, "w") as fh:
+            with filename.open("w") as fh:
                 json.dump(data, fh)
         except Exception as err:
             self._error(f"Unable to write file {filename} due to {str(err)}")
@@ -53,7 +53,7 @@ class Offline(SimvueBaseClass):
         self, prefix: str, data: dict[str, typing.Any]
     ) -> typing.Optional[dict[str, typing.Any]]:
         unique_id = time.time()
-        filename = os.path.join(self._directory, f"{prefix}-{unique_id}.json")
+        filename = self.directory.joinpath(f"{prefix}-{unique_id}.json")
         self._write_json(filename, data)
         return data
 
@@ -62,18 +62,18 @@ class Offline(SimvueBaseClass):
         """
         Create a run
         """
-        if not self._directory:
+        if not self.directory:
             self._logger.error("No directory specified")
             return (None, None)
         try:
-            os.makedirs(self._directory, exist_ok=True)
+            os.makedirs(self.directory, exist_ok=True)
         except Exception as err:
             self._logger.error(
-                "Unable to create directory %s due to: %s", self._directory, str(err)
+                "Unable to create directory %s due to: %s", self.directory, str(err)
             )
             return (None, None)
 
-        filename = f"{self._directory}/run.json"
+        filename = self.directory.joinpath("run.json")
 
         logger.debug(f"Creating run in '{filename}'")
 
@@ -83,7 +83,7 @@ class Offline(SimvueBaseClass):
         self._write_json(filename, data)
 
         status = data["status"]
-        filename = f"{self._directory}/{status}"
+        filename = self.directory.joinpath(status)
         create_file(filename)
 
         return (self._name, self._id)
@@ -94,22 +94,22 @@ class Offline(SimvueBaseClass):
         Update metadata, tags or status
         """
         unique_id = time.time()
-        filename = f"{self._directory}/update-{unique_id}.json"
+        filename = self.directory.joinpath(f"update-{unique_id}.json")
         self._write_json(filename, data)
 
         if "status" in data:
             status = data["status"]
-            if not self._directory or not os.path.exists(self._directory):
+            if not self.directory or not self.directory.exists():
                 self._error("No directory defined for writing")
                 return None
-            filename = f"{self._directory}/{status}"
+            filename = self.directory.joinpath(status)
 
             logger.debug(f"Writing API data to file '{filename}'")
 
             create_file(filename)
 
             if status == "completed":
-                status_running = f"{self._directory}/running"
+                status_running = self.directory.joinpath("running")
                 if os.path.isfile(status_running):
                     os.remove(status_running)
 
@@ -121,7 +121,7 @@ class Offline(SimvueBaseClass):
         Set folder details
         """
         unique_id = time.time()
-        filename = f"{self._directory}/folder-{unique_id}.json"
+        filename = self.directory.joinpath(f"folder-{unique_id}.json")
         self._write_json(filename, data)
         return data
 
@@ -133,12 +133,12 @@ class Offline(SimvueBaseClass):
         Save file
         """
         if "pickled" in data:
-            temp_file = f"{self._directory}/temp-{uuid.uuid4()}.pickle"
+            temp_file = self.directory.joinpath(f"temp-{uuid.uuid4()}.pickle")
             with open(temp_file, "wb") as fh:
                 fh.write(data["pickled"])
             data["pickledFile"] = temp_file
         unique_id = time.time()
-        filename = os.path.join(self._directory, f"file-{unique_id}.json")
+        filename = self.directory.joinpath(f"file-{unique_id}.json")
         self._write_json(filename, prepare_for_api(data, False))
         return data
 
@@ -155,7 +155,7 @@ class Offline(SimvueBaseClass):
         self, alert_id: str, status: str
     ) -> typing.Optional[dict[str, typing.Any]]:
         if not os.path.exists(
-            _alert_file := os.path.join(self._directory, f"alert-{alert_id}.json")
+            _alert_file := self.directory.joinpath(f"alert-{alert_id}.json")
         ):
             self._error(f"Failed to retrieve alert '{alert_id}' for modification")
             return None
@@ -173,7 +173,7 @@ class Offline(SimvueBaseClass):
     def list_alerts(self) -> list[dict[str, typing.Any]]:
         return [
             json.load(open(alert_file))
-            for alert_file in glob.glob(os.path.join(self._directory, "alert-*.json"))
+            for alert_file in self.directory.glob("alert-*.json")
         ]
 
     def send_metrics(
@@ -194,10 +194,9 @@ class Offline(SimvueBaseClass):
 
     @skip_if_failed("_aborted", "_suppress_errors", None)
     def send_heartbeat(self) -> typing.Optional[dict[str, typing.Any]]:
-        logger.debug(
-            f"Creating heartbeat file: {os.path.join(self._directory, 'heartbeat')}"
-        )
-        pathlib.Path(os.path.join(self._directory, "heartbeat"), "a").touch()
+        heartbeat_file = self.directory.joinpath("heartbeat")
+        logger.debug(f"Creating heartbeat file: {heartbeat_file}")
+        heartbeat_file.touch()
         return {"success": True}
 
     @skip_if_failed("_aborted", "_suppress_errors", False)

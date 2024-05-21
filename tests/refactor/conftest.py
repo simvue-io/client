@@ -1,5 +1,4 @@
 import pytest
-import pytest_mock
 import typing
 import uuid
 import time
@@ -7,9 +6,7 @@ import tempfile
 import os
 import json
 import logging
-import os
 import simvue.run as sv_run
-import simvue.utilities
 
 MAX_BUFFER_SIZE: int = 10
 
@@ -45,30 +42,34 @@ def log_messages(caplog):
 @pytest.fixture
 def create_test_run() -> typing.Generator[typing.Tuple[sv_run.Run, dict], None, None]:
     with sv_run.Run() as run:
-        yield run, setup_test_run(run, True)
+        run_data = setup_test_run(run, True)
+        yield run, run_data
 
 
 @pytest.fixture
-def create_test_run_offline(mocker: pytest_mock.MockerFixture) -> typing.Generator[typing.Tuple[sv_run.Run, dict], None, None]:
+def create_test_run_offline() -> typing.Generator[typing.Tuple[sv_run.Run, dict], None, None]:
     with tempfile.TemporaryDirectory() as temp_d:
-        mocker.patch.object(simvue.utilities, "get_offline_directory", lambda *_: temp_d)
+        os.environ["SIMVUE_OFFLINE_DIRECTORY"] = temp_d
         with sv_run.Run("offline") as run:
-            yield run, setup_test_run(run, True)
-
+            run_data = setup_test_run(run, True)
+            yield run, run_data
+        del os.environ["SIMVUE_OFFLINE_DIRECTORY"]
 
 @pytest.fixture
 def create_plain_run() -> typing.Generator[typing.Tuple[sv_run.Run, dict], None, None]:
     with sv_run.Run() as run:
-        yield run, setup_test_run(run, False)
+        run_data = setup_test_run(run, False)
+        yield run, run_data
 
 
 @pytest.fixture
-def create_plain_run_offline(mocker: pytest_mock.MockerFixture) -> typing.Generator[typing.Tuple[sv_run.Run, dict], None, None]:
+def create_plain_run_offline() -> typing.Generator[typing.Tuple[sv_run.Run, dict], None, None]:
     with tempfile.TemporaryDirectory() as temp_d:
-        mocker.patch.object(simvue.utilities, "get_offline_directory", lambda *_: temp_d)
+        os.environ["SIMVUE_OFFLINE_DIRECTORY"] = temp_d
         with sv_run.Run("offline") as run:
-            
-            yield run, setup_test_run(run, False)
+            run_data = setup_test_run(run, False)
+            yield run, run_data
+        del os.environ["SIMVUE_OFFLINE_DIRECTORY"]
 
 
 def setup_test_run(run: sv_run.Run, create_objects: bool):
@@ -120,6 +121,7 @@ def setup_test_run(run: sv_run.Run, create_objects: bool):
             with open((test_json := os.path.join(tempd, f"test_attrs_{fix_use_id}.json")), "w") as out_f:
                 json.dump(TEST_DATA, out_f, indent=2)
             run.save_file(test_json, category="output", name="test_attributes")
+
             TEST_DATA["file_2"] = "test_attributes"
 
             with open((test_script := os.path.join(tempd, "test_script.py")), "w") as out_f:
@@ -128,6 +130,7 @@ def setup_test_run(run: sv_run.Run, create_objects: bool):
                 )
             run.save_file(test_script, category="code", name="test_empty_file")
             TEST_DATA["file_3"] = "test_empty_file"
+            TEST_DATA["tempdir"] = tempd
 
     time.sleep(1.)
     return TEST_DATA

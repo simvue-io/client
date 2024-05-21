@@ -4,6 +4,7 @@ import hashlib
 import logging
 import json
 import tabulate
+import pathlib
 import pydantic
 import importlib.util
 import contextlib
@@ -148,7 +149,7 @@ def get_auth():
     return url, token
 
 
-def get_offline_directory():
+def get_offline_directory() -> pathlib.Path:
     """
     Get directory for offline cache
     """
@@ -166,7 +167,9 @@ def get_offline_directory():
     if not directory:
         directory = os.path.join(os.path.expanduser("~"), ".simvue")
 
-    return directory
+    directory = os.environ.get("SIMVUE_OFFLINE_DIRECTORY", directory)
+
+    return pathlib.Path(directory)
 
 
 def create_file(filename):

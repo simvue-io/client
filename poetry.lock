@@ -1508,23 +1508,6 @@ pytest = ">=3.7.0"
 setuptools = "*"
 
 [[package]]
-name = "pytest-mock"
-version = "3.14.0"
-description = "Thin-wrapper around the mock package for easier use with pytest"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "pytest-mock-3.14.0.tar.gz", hash = "sha256:2719255a1efeceadbc056d6bf3df3d1c5015530fb40cf347c0f9afac88410bd0"},
-    {file = "pytest_mock-3.14.0-py3-none-any.whl", hash = "sha256:0b72c38033392a5f4621342fe11e9219ac11ec9d375f8e2a0c164539e0d70f6f"},
-]
-
-[package.dependencies]
-pytest = ">=6.2.5"
-
-[package.extras]
-dev = ["pre-commit", "pytest-asyncio", "tox"]
-
-[[package]]
 name = "pytest-sugar"
 version = "1.0.0"
 description = "pytest-sugar is a plugin for pytest that changes the default look and feel of pytest (e.g. progressbar, show tests that fail instantly)."
@@ -1929,4 +1912,4 @@ plot = ["matplotlib", "plotly"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "9008c719764202a7483f973dd1f62f6ba3de29477adc9d97a145912d7b90d81d"
+content-hash = "5bdc710a72830e0c737c51ce4a500a8d15853b56604a61ca0d10b3cd9869d958"
