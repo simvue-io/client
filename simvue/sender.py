@@ -1,9 +1,17 @@
+"""
+Offline Sender
+==============
+
+Contains functions for the later dispatch of offline data to a Simvue server
+"""
+
 import typing
 import json
 import logging
 import os
 import shutil
 import time
+import pathlib
 
 import msgpack
 
@@ -13,22 +21,40 @@ from .utilities import create_file, get_offline_directory, remove_file
 logger = logging.getLogger(__name__)
 
 
-def set_details(name, id, filename):
+def set_details(name: str, id: str, json_file: pathlib.Path) -> None:
+    """Write name & id to file
+
+    Parameters
+    ----------
+    name : str
+        run name
+    id : str
+        run ID
+    json_file : pathlib.Path
+        file to write output to
     """
-    Write name & id to file
-    """
-    data = {"name": name, "id": id}
-    with open(filename, "w") as fh:
+    data: dict[str, str] = {"name": name, "id": id}
+    with json_file.open() as fh:
         json.dump(data, fh)
 
 
-def get_details(name):
+def get_details(json_file: pathlib.Path) -> tuple[str, str]:
+    """Get name & id from file
+
+    Parameters
+    ----------
+    json_file : pathlib.Path
+        file to open
+
+    Returns
+    -------
+    tuple[str, str]
+        name of run
+        id of run
     """
-    Get name & id from file
-    """
-    with open(name) as fh:
+    with json_file.open() as fh:
         data = json.load(fh)
-        return data["name"], data["id"]
+    return data["name"], data["id"]
 
 
 def update_name(id, data):
@@ -39,40 +65,67 @@ def update_name(id, data):
         item["id"] = id
 
 
-def add_name(name, data, filename):
-    """
-    Update name in JSON
+def add_name(
+    name: str, data: dict[str, typing.Any], json_file: pathlib.Path
+) -> dict[str, typing.Any]:
+    """Update name in JSON
+
+    Parameters
+    ----------
+    name : str
+        name of run
+    data : dict[str, Any]
+        data to write to file if name undefined
+    filename : pathlib.Path
+        json file to write to
+
+    Returns
+    -------
+    dict[str, Any]
+        updated data
     """
     if not data["name"]:
         data["name"] = name
-        with open(filename, "w") as fh:
+        with json_file.open("w") as fh:
             json.dump(data, fh)
 
     return data
 
 
-def read_json(filename):
-    with open(filename, "r") as fh:
-        return json.load(fh)
+def get_json(
+    json_file: pathlib.Path, run_id: typing.Optional[str] = None, artifact: bool = False
+) -> dict[str, typing.Any]:
+    """Get JSON from file
 
+    Parameters
+    ----------
+    json_file : pathlib.Path
+        _description_
+    run_id : typing.Optional[str], optional
+        _description_, by default None
+    artifact : bool, optional
+        _description_, by default False
 
-def get_json(filename, run_id=None, artifact=False):
+    Returns
+    -------
+    dict[str, typing.Any]
+        _description_
     """
-    Get JSON from a file
-    """
-    with open(filename, "r") as fh:
+    with json_file.open() as fh:
         data = json.load(fh)
-    if run_id:
-        if artifact:
-            for item in data:
-                if item == "run":
-                    data[item] = run_id
-            return data
 
+    if not run_id:
+        return data
+
+    if artifact:
         if "run" in data:
             data["run"] = run_id
-        else:
-            data["id"] = run_id
+        return data
+
+    if "run" in data:
+        data["run"] = run_id
+    else:
+        data["id"] = run_id
 
     return data
 
