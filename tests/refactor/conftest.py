@@ -26,7 +26,7 @@ class CountingLogHandler(logging.Handler):
 
 
 @pytest.fixture(autouse=True)
-def setup_logging() -> logging.Handler:
+def setup_logging() -> CountingLogHandler:
     logging.basicConfig(level=logging.DEBUG)
     handler = CountingLogHandler()
     logging.getLogger().setLevel(logging.DEBUG)
@@ -87,6 +87,8 @@ def setup_test_run(run: sv_run.Run, create_objects: bool):
         name=f"test_run_{TEST_DATA['metadata']['test_identifier']}",
         tags=["simvue_client_unit_tests"],
         folder=TEST_DATA["folder"],
+        visibility="tenant",
+        retention_period="1 hour"
     )
     run._dispatcher._max_buffer_size = MAX_BUFFER_SIZE
 

@@ -56,9 +56,12 @@ def create_project_directories() -> (
 
 @pytest.mark.run
 @pytest.mark.parametrize("overload_buffer", (True, False), ids=("overload", "normal"))
-def test_log_metrics_online(
+@pytest.mark.parametrize("visibility", ("bad_option", "tenant", "public", ["ciuser01"], None))
+def test_log_metrics(
     overload_buffer: bool,
-    setup_logging: "CountingLogHandler"
+    setup_logging: "CountingLogHandler",
+    mocker,
+    visibility: typing.Union[typing.Literal["public", "tenant"], list[str], None]
 ) -> None:
     METRICS = {"a": 10, "b": 1.2}
 
@@ -68,10 +71,23 @@ def test_log_metrics_online(
     # occurs immediately and is not captured by the handler when using the fixture
     run = sv_run.Run()
     run.config(suppress_errors=False)
+
+    if visibility == "bad_option":
+        with pytest.raises(RuntimeError):
+            run.init(
+                name=f"test_run_{str(uuid.uuid4()).split('-', 1)[0]}",
+                tags=["simvue_client_unit_tests"],
+                folder="/simvue_unit_testing",
+                retention_period="1 hour",
+                visibility=visibility
+            )
+        return
+
     run.init(
         name=f"test_run_{str(uuid.uuid4()).split('-', 1)[0]}",
         tags=["simvue_client_unit_tests"],
         folder="/simvue_unit_testing",
+        visibility=visibility,
         retention_period="1 hour",
     )
 
@@ -353,6 +369,12 @@ def test_suppressed_errors(
 
 
 @pytest.mark.run
+def test_bad_run_arguments() -> None:
+    with sv_run.Run() as run:
+        with pytest.raises(RuntimeError):
+            run.init("sdas", [34])
+
+
 def test_set_folder_details_online() -> None:
     with sv_run.Run() as run:
         folder_name: str = "/simvue_unit_test_folder"

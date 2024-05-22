@@ -14,9 +14,64 @@ import typing
 import jwt
 
 CHECKSUM_BLOCK_SIZE = 4096
-EXTRAS: tuple[str, ...] = ("plot", "torch", "dataset")
+EXTRAS: tuple[str, ...] = ("plot", "torch")
 
 logger = logging.getLogger(__name__)
+
+
+def parse_validation_response(
+    response: dict[str, list[dict[str, str]]],
+) -> str:
+    """Parse ValidationError response from server
+
+    Reformats the error information from a validation error into a human
+    readable table. Checks if 'body' exists within response to determine
+    whether or not the output can contain the original input.
+
+    Parameters
+    ----------
+    response : dict[str, list[dict[str, str]]]
+        response from Simvue server
+
+    Returns
+    -------
+    str
+        return the validation information
+    """
+    if not (issues := response.get("detail")):
+        raise RuntimeError(
+            "Expected key 'detail' in server response during validation failure"
+        )
+
+    out: list[list[str]] = []
+
+    for issue in issues:
+        obj_type: str = issue["type"]
+        location: list[str] = issue["loc"]
+        location.remove("body")
+        location_addr: str = ""
+        for i, loc in enumerate(location):
+            if isinstance(loc, int):
+                location_addr += f"[{loc}]"
+            else:
+                location_addr += f"{'.' if i > 0 else ''}{loc}"
+        headers = ["Type", "Location", "Message"]
+        information = [obj_type, location_addr]
+
+        # Check if server response contains 'body'
+        if body := response.get("body"):
+            headers = ["Type", "Location", "Input", "Message"]
+            input_arg = body
+            for loc in location:
+                input_arg = input_arg[loc]
+            information.append(input_arg)
+
+        msg: str = issue["msg"]
+        information.append(msg)
+        out.append(information)
+
+    _table = tabulate.tabulate(out, headers=headers, tablefmt="fancy_grid")
+    return str(_table)
 
 
 def check_extra(extra_name: str) -> typing.Callable:
@@ -36,15 +91,6 @@ def check_extra(extra_name: str) -> typing.Callable:
             elif extra_name == "torch" and not importlib.util.find_spec("torch"):
                 raise RuntimeError(
                     "PyTorch features require the 'torch' module to be installed"
-                )
-            elif extra_name == "dataset" and not all(
-                [
-                    importlib.util.find_spec("numpy"),
-                    importlib.util.find_spec("pandas"),
-                ]
-            ):
-                raise RuntimeError(
-                    f"Dataset features require the '{extra_name}' extension to Simvue"
                 )
             elif extra_name not in EXTRAS:
                 raise RuntimeError(f"Unrecognised extra '{extra_name}'")

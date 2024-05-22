@@ -1,7 +1,21 @@
 from simvue.serialization import serialize_object
 import matplotlib.pyplot as plt
 import plotly
+import pytest
 
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+try:
+    import plotly
+except ImportError:
+    plotly = None
+
+
+@pytest.mark.skipif(not plt, reason="Matplotlib is not installed")
+@pytest.mark.skipif(not plotly, reason="Plotly is not installed")
 def test_plotly_figure_mime_type():
     """
     Check that a plotly figure has the correct mime-type

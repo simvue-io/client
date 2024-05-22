@@ -7,11 +7,10 @@ data types including creation of DataFrames for metrics
 """
 
 import typing
+import pandas
 
 if typing.TYPE_CHECKING:
     from pandas import DataFrame
-
-from .utilities import check_extra
 
 
 def aggregated_metrics_to_dataframe(
@@ -78,9 +77,6 @@ def aggregated_metrics_to_dataframe(
                     )
 
     if parse_to == "dataframe":
-        check_extra("dataset")
-        import pandas
-
         _data_frame = pandas.DataFrame(result_dict)
         _data_frame.index.name = xaxis
         return _data_frame
@@ -174,9 +170,6 @@ def parse_run_set_metrics(
                     result_dict[metric_name][step, run_label] = next_item.get("value")
 
     if parse_to == "dataframe":
-        check_extra("dataset")
-        import pandas
-
         _data_frame = pandas.DataFrame(
             result_dict,
             index=pandas.MultiIndex.from_product(
@@ -194,7 +187,6 @@ def to_dataframe(data):
     """
     Convert runs to dataframe
     """
-    import pandas as pd
 
     metadata = []
     for run in data:
@@ -236,7 +228,7 @@ def to_dataframe(data):
                 else:
                     columns["metadata.%s" % item].append(None)
 
-    return pd.DataFrame(data=columns)
+    return pandas.DataFrame(data=columns)
 
 
 def metric_time_series_to_dataframe(
@@ -260,11 +252,10 @@ def metric_time_series_to_dataframe(
     DataFrame
         a Pandas DataFrame containing values for the metric and run at each
     """
-    import pandas as pd
 
     _df_dict: dict[str, list[float]] = {
         xaxis: [v[xaxis] for v in data],
         name or "value": [v["value"] for v in data],
     }
 
-    return pd.DataFrame(_df_dict)
+    return pandas.DataFrame(_df_dict)

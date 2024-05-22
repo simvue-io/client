@@ -1,6 +1,13 @@
 import torch
 from simvue.serialization import serialize_object, deserialize_data
+import pytest
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
+@pytest.mark.skipif(not torch, reason="Torch is not installed")
 def test_pytorch_tensor_serialization():
     """
     Check that a PyTorch tensor can be serialized then deserialized successfully

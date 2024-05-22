@@ -1018,7 +1018,6 @@ class Client:
             )
 
     @check_extra("plot")
-    @check_extra("dataset")
     def plot_metrics(
         self,
         run_ids: list[str],

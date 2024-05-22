@@ -12,7 +12,13 @@ import json
 import typing
 
 import requests
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
+from .utilities import parse_validation_response
 
 DEFAULT_API_TIMEOUT = 10
 RETRY_MULTIPLIER = 1
@@ -34,6 +40,7 @@ def set_json_header(headers: dict[str, str]) -> dict[str, str]:
 @retry(
     wait=wait_exponential(multiplier=RETRY_MULTIPLIER, min=RETRY_MIN, max=RETRY_MAX),
     stop=stop_after_attempt(RETRY_STOP),
+    retry=retry_if_exception_type(RuntimeError),
     reraise=True,
 )
 def post(
@@ -73,6 +80,12 @@ def post(
             f"Authorization error [{response.status_code}]: {response.text}"
         )
 
+    if response.status_code == 422:
+        _parsed_response = parse_validation_response(response.json())
+        raise ValueError(
+            f"Validation error [{response.status_code}]:\n{_parsed_response}"
+        )
+
     if response.status_code not in (200, 201, 409):
         raise RuntimeError(f"HTTP error [{response.status_code}]: {response.text}")
 
@@ -81,6 +94,7 @@ def post(
 
 @retry(
     wait=wait_exponential(multiplier=RETRY_MULTIPLIER, min=RETRY_MIN, max=RETRY_MAX),
+    # retry=retry_if_not_exception_message(match="Validation error"), # if validation failed no point in retrying
     stop=stop_after_attempt(RETRY_STOP),
 )
 def put(

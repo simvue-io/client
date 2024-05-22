@@ -1,6 +1,13 @@
+import pytest
 import pandas as pd
 from simvue.serialization import serialize_object
 
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
+@pytest.mark.skipif(not pd, reason="Pandas is not installed")
 def test_pandas_dataframe_mimetype():
     """
     Check that the mime-type of a Pandas dataframe is correct
