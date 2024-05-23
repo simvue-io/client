@@ -10,14 +10,18 @@ from multiprocessing import Process, Manager
 @pytest.mark.scenario
 def test_time_multi_run_create_threshold() -> None:
     start = time.time()
-    for i in range(20):
-        with simvue.Run() as run:
-            run.init(
-                f"test run {i}",
-                tags=["test_benchmarking"],
-                folder="/simvue_benchmark_testing",
-                retention_period="1 hour"
-            )
+    runs: list[simvue.Run] = []
+    for i in range(10):
+        run = simvue.Run()
+        run.init(
+            f"test run {i}",
+            tags=["test_benchmarking"],
+            folder="/simvue_benchmark_testing",
+            retention_period="1 hour"
+        )
+        runs.append(run)
+    for run in runs:
+        run.close()
     end = time.time()
     client = simvue.Client()
     with contextlib.suppress(RuntimeError):

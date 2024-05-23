@@ -101,6 +101,7 @@ class Run:
         self._simvue: typing.Optional[SimvueBaseClass] = None
         self._pid: typing.Optional[int] = 0
         self._shutdown_event: typing.Optional[threading.Event] = None
+        self._configuration_lock = threading.Lock()
         self._heartbeat_termination_trigger: typing.Optional[threading.Event] = None
         self._storage_id: typing.Optional[str] = None
         self._heartbeat_thread: typing.Optional[threading.Thread] = None
@@ -218,27 +219,27 @@ class Run:
             raise RuntimeError("Could not commence heartbeat, run not initialised")
 
         def _heartbeat(
-            url: typing.Optional[str] = self._url,
-            headers: dict[str, str] = self._headers,
-            run_id: typing.Optional[str] = self._id,
-            online: bool = self._mode == "online",
             heartbeat_trigger: threading.Event = self._heartbeat_termination_trigger,
         ) -> None:
             last_heartbeat = time.time()
             last_res_metric_call = time.time()
 
-            self._add_metrics_to_dispatch(self._get_sysinfo())
-
             while not heartbeat_trigger.is_set():
                 time.sleep(0.1)
 
-                if (
-                    self._resources_metrics_interval
-                    and (res_time := time.time()) - last_res_metric_call
-                    > self._resources_metrics_interval
-                ):
-                    self._add_metrics_to_dispatch(self._get_sysinfo())
-                    last_res_metric_call = res_time
+                with self._configuration_lock:
+                    if (
+                        self._resources_metrics_interval
+                        and (res_time := time.time()) - last_res_metric_call
+                        > self._resources_metrics_interval
+                    ):
+                        # Set join on fail to false as if an error is thrown
+                        # join would be called on this thread and a thread cannot
+                        # join itself!
+                        self._add_metrics_to_dispatch(
+                            self._get_sysinfo(), join_on_fail=False
+                        )
+                        last_res_metric_call = res_time
 
                 if time.time() - last_heartbeat < HEARTBEAT_INTERVAL:
                     continue
@@ -377,20 +378,23 @@ class Run:
             self._error(e.args[0])
             return False
 
+        self._active = True
+
         self._dispatcher.start()
         self._heartbeat_thread.start()
 
-        self._active = True
-
         return True
 
-    def _error(self, message: str) -> None:
+    def _error(self, message: str, join_threads: bool = True) -> None:
         """Raise an exception if necessary and log error
 
         Parameters
         ----------
         message : str
             message to display in exception or logger message
+        join_threads : bool
+            whether to join the threads on failure. This option exists to
+            prevent join being called in nested thread calls to this function.
 
         Raises
         ------
@@ -400,7 +404,8 @@ class Run:
         # Stop heartbeat
         if self._heartbeat_termination_trigger and self._heartbeat_thread:
             self._heartbeat_termination_trigger.set()
-            self._heartbeat_thread.join()
+            if join_threads:
+                self._heartbeat_thread.join()
 
         # Finish stopping all threads
         if self._shutdown_event:
@@ -409,7 +414,8 @@ class Run:
         # Purge the queue as we can no longer send metrics
         if self._dispatcher and self._dispatcher.is_alive():
             self._dispatcher.purge()
-            self._dispatcher.join()
+            if join_threads:
+                self._dispatcher.join()
 
         if not self._suppress_errors:
             raise RuntimeError(message)
@@ -793,27 +799,28 @@ class Run:
             _description_
         """
 
-        if suppress_errors is not None:
-            self._suppress_errors = suppress_errors
+        with self._configuration_lock:
+            if suppress_errors is not None:
+                self._suppress_errors = suppress_errors
 
-        if queue_blocking is not None:
-            self._queue_blocking = queue_blocking
+            if queue_blocking is not None:
+                self._queue_blocking = queue_blocking
 
-        if resources_metrics_interval and disable_resources_metrics:
-            self._error(
-                "Setting of resource metric interval and disabling resource metrics is ambiguous"
-            )
-            return False
+            if resources_metrics_interval and disable_resources_metrics:
+                self._error(
+                    "Setting of resource metric interval and disabling resource metrics is ambiguous"
+                )
+                return False
 
-        if disable_resources_metrics:
-            self._pid = None
-            self._resources_metrics_interval = None
+            if disable_resources_metrics:
+                self._pid = None
+                self._resources_metrics_interval = None
 
-        if resources_metrics_interval:
-            self._resources_metrics_interval = resources_metrics_interval
+            if resources_metrics_interval:
+                self._resources_metrics_interval = resources_metrics_interval
 
-        if storage_id:
-            self._storage_id = storage_id
+            if storage_id:
+                self._storage_id = storage_id
 
         return True
 
@@ -900,6 +907,7 @@ class Run:
         step: typing.Optional[int] = None,
         time: typing.Optional[int] = None,
         timestamp: typing.Optional[str] = None,
+        join_on_fail: bool = True,
     ) -> bool:
         if self._mode == "disabled":
             return True
@@ -909,19 +917,21 @@ class Run:
             return True
 
         if not self._simvue or not self._dispatcher:
-            self._error("Cannot log metrics, run not initialised")
+            self._error("Cannot log metrics, run not initialised", join_on_fail)
             return False
 
         if not self._active:
-            self._error("Run is not active")
+            self._error("Run is not active", join_on_fail)
             return False
 
         if self._status != "running":
-            self._error("Cannot log metrics when not in the running state")
+            self._error(
+                "Cannot log metrics when not in the running state", join_on_fail
+            )
             return False
 
         if timestamp and not validate_timestamp(timestamp):
-            self._error("Invalid timestamp format")
+            self._error("Invalid timestamp format", join_on_fail)
             return False
 
         _data: dict[str, typing.Any] = {
@@ -1347,7 +1357,7 @@ class Run:
         return False
 
     @pydantic.validate_call
-    @skip_if_failed("_aborted", "_suppress_errors", False)
+    @skip_if_failed("_aborted", "_suppress_errors", None)
     @pydantic.validate_call
     def create_alert(
         self,
@@ -1370,7 +1380,7 @@ class Run:
         ] = "average",
         notification: typing.Literal["email", "none"] = "none",
         pattern: typing.Optional[str] = None,
-    ) -> bool:
+    ) -> typing.Optional[str]:
         """Creates an alert with the specified name (if it doesn't exist)
         and applies it to the current run. If alert already exists it will
         not be duplicated.
@@ -1432,19 +1442,19 @@ class Run:
 
         Returns
         -------
-        bool
-            returns True on success
+        str | None
+            returns the created alert ID if successful
         """
         if self._mode == "disabled":
-            return True
+            return None
 
         if not self._simvue:
             self._error("Cannot add alert, run not initialised")
-            return False
+            return None
 
         if rule in ("is below", "is above") and threshold is None:
             self._error("threshold must be defined for the specified alert type")
-            return False
+            return None
 
         if rule in ("is outside range", "is inside range") and (
             range_low is None or range_high is None
@@ -1452,7 +1462,7 @@ class Run:
             self._error(
                 "range_low and range_high must be defined for the specified alert type"
             )
-            return False
+            return None
 
         alert_definition = {}
 
@@ -1499,15 +1509,14 @@ class Run:
                     alert_id = response["id"]
             else:
                 self._error("unable to create alert")
-                return False
+                return None
 
         if alert_id:
             # TODO: What if we keep existing alerts/add a new one later?
             data = {"id": self._id, "alerts": [alert_id]}
-            if self._simvue.update(data):
-                return True
+            self._simvue.update(data)
 
-        return False
+        return alert_id
 
     @pydantic.validate_call
     @skip_if_failed("_aborted", "_suppress_errors", False)

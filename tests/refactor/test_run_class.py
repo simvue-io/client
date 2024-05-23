@@ -79,7 +79,8 @@ def test_log_metrics(
                 tags=["simvue_client_unit_tests"],
                 folder="/simvue_unit_testing",
                 retention_period="1 hour",
-                visibility=visibility
+                visibility=visibility,
+                resources_metrics_interval=1
             )
         return
 
@@ -88,6 +89,7 @@ def test_log_metrics(
         tags=["simvue_client_unit_tests"],
         folder="/simvue_unit_testing",
         visibility=visibility,
+        resources_metrics_interval=1,
         retention_period="1 hour",
     )
 
