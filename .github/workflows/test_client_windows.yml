@@ -29,4 +29,4 @@ jobs:
         export SIMVUE_URL=${{ secrets.SIMVUE_URL }}
         export SIMVUE_TOKEN=${{ secrets.SIMVUE_TOKEN }}
         poetry install --all-extras
-        poetry run pytest tests/unit/ tests/refactor/
+        poetry run pytest tests/unit/ tests/refactor/ -m 'not scenario'

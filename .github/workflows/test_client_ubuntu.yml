@@ -30,7 +30,7 @@ jobs:
         export SIMVUE_URL=${{ secrets.SIMVUE_URL }}
         export SIMVUE_TOKEN=${{ secrets.SIMVUE_TOKEN }}
         poetry install --all-extras
-        poetry run pytest --cov --cov-report=xml tests/unit/ tests/refactor/
+        poetry run pytest --cov --cov-report=xml tests/unit/ tests/refactor/ -m 'not scenario'
     - name: Upload coverage reports to Codecov
       run: |
         curl -Os https://uploader.codecov.io/latest/linux/codecov

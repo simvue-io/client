@@ -45,7 +45,7 @@ def git_info(repository: str) -> dict[str, typing.Any]:
     # In the case where the repository is dirty blame should point to the
     # current developer, not the person responsible for the latest commit
     if dirty := git_repo.is_dirty():
-        blame = git_repo.config_reader().get_value("user", "email")
+        blame = git_repo.config_reader().get_value("user", "email", "unknown")
     else:
         blame = current_commit.committer.email
 
