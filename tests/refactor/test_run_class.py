@@ -56,12 +56,14 @@ def create_project_directories() -> (
 
 @pytest.mark.run
 @pytest.mark.parametrize("overload_buffer", (True, False), ids=("overload", "normal"))
-@pytest.mark.parametrize("visibility", ("bad_option", "tenant", "public", ["ciuser01"], None))
+@pytest.mark.parametrize(
+    "visibility", ("bad_option", "tenant", "public", ["ciuser01"], None)
+)
 def test_log_metrics(
     overload_buffer: bool,
     setup_logging: "CountingLogHandler",
     mocker,
-    visibility: typing.Union[typing.Literal["public", "tenant"], list[str], None]
+    visibility: typing.Union[typing.Literal["public", "tenant"], list[str], None],
 ) -> None:
     METRICS = {"a": 10, "b": 1.2}
 
@@ -80,7 +82,7 @@ def test_log_metrics(
                 folder="/simvue_unit_testing",
                 retention_period="1 hour",
                 visibility=visibility,
-                resources_metrics_interval=1
+                resources_metrics_interval=1,
             )
         return
 
@@ -446,7 +448,10 @@ def test_set_folder_details_offline() -> None:
     with sv_run.Run(mode="offline") as run:
         folder_name: str = "/simvue_unit_test_folder"
         description: str = "test description"
-        tags: list[str] = ["simvue_client_unit_tests", "test_set_folder_details_offline"]
+        tags: list[str] = [
+            "simvue_client_unit_tests",
+            "test_set_folder_details_offline",
+        ]
         run.init(folder=folder_name)
         run.set_folder_details(path=folder_name, tags=tags, description=description)
     assert sv_send.sender()
@@ -708,5 +713,41 @@ def test_save_all_offline(
 
 
 @pytest.mark.run
-def test_create_alerts(create_plain_run: typing.Tuple[sv_run.Run, dict]) -> None:
-    pass
+@pytest.mark.parametrize("alert_type", ("events", "metrics", "user"))
+@pytest.mark.parametrize("passed", (True, False))
+def test_create_alerts(
+    create_plain_run: typing.Tuple[sv_run.Run, dict],
+    alert_type: typing.Literal["events", "metrics", "user"],
+    passed: bool
+) -> None:
+    simvue_run, _ = create_plain_run
+    simvue_run.update_tags(["simvue_client_unit_tests", "test_create_alerts"])
+
+    if alert_type == "events":
+        alert_id = simvue_run.create_alert(
+            name=f"test_alert_{alert_type}",
+            source=alert_type,
+            pattern="Help!"
+        )
+        time.sleep(1)
+        simvue_run.log_event("Everything is fine :)" if passed else "Help!")
+    elif alert_type == "metrics":
+        alert_id = simvue_run.create_alert(
+            name=f"test_alert_{alert_type}",
+            source=alert_type,
+            metric="x",
+            threshold=2,
+            frequency=1,
+            window=2,
+            rule="is above"
+        )
+        for _ in range(5):
+            time.sleep(1)
+            simvue_run.log_metrics({"x": 3 if passed else 1})
+    else:
+        alert_id = simvue_run.create_alert(
+            name=f"test_alert_{alert_type}",
+            source=alert_type
+        )
+        simvue_run.log_alert(alert_id, "ok" if passed else "critical")
+
