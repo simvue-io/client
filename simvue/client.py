@@ -16,6 +16,7 @@ from pandas import DataFrame
 
 import requests
 
+from .filter import RunsFilter, FoldersFilter
 from .converters import (
     aggregated_metrics_to_dataframe,
     to_dataframe,
@@ -264,7 +265,7 @@ class Client:
     @pydantic.validate_call
     def get_runs(
         self,
-        filters: typing.Optional[list[str]],
+        filters: typing.Optional[typing.Union[list[str], RunsFilter]],
         system: bool = False,
         metrics: bool = False,
         alerts: bool = False,
@@ -280,7 +281,7 @@ class Client:
 
         Parameters
         ----------
-        filters: list[str] | None
+        filters: list[str] | RunsFilter | None
             set of filters to apply to query results. If None is specified
             return all results without filtering.
         metadata : bool, optional
@@ -315,6 +316,9 @@ class Client:
         RuntimeError
             if there was a failure in data retrieval from the server
         """
+        if isinstance(filters, RunsFilter):
+            filters = filters.as_list()
+
         if not show_shared:
             filters = (filters or []) + ["user == self"]
 
@@ -877,7 +881,7 @@ class Client:
     @pydantic.validate_call
     def get_folders(
         self,
-        filters: typing.Optional[list[str]] = None,
+        filters: typing.Optional[typing.Union[list[str], FoldersFilter]] = None,
         count: pydantic.PositiveInt = 100,
         start_index: pydantic.NonNegativeInt = 0,
     ) -> list[dict[str, typing.Any]]:
@@ -885,7 +889,7 @@ class Client:
 
         Parameters
         ----------
-        filters : list[str] | None
+        filters : list[str] | FoldersFilter | None
             set of filters to apply to the search
         count : int, optional
             maximum number of entries to return. Default is 100.
@@ -902,6 +906,9 @@ class Client:
         RuntimeError
             if there was a failure retrieving data from the server
         """
+        if isinstance(filters, FoldersFilter):
+            filters = filters.as_list()
+
         params: dict[str, typing.Union[str, int]] = {
             "filters": json.dumps(filters or []),
             "count": count,
