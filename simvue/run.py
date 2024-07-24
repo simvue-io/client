@@ -653,8 +653,8 @@ class Run:
         identifier: str,
         *cmd_args,
         executable: typing.Optional[typing.Union[str, pathlib.Path]] = None,
-        script: typing.Optional[pydantic.FilePath] = None,
-        input_file: typing.Optional[pydantic.FilePath] = None,
+        script: typing.Optional[typing.Union[str, pathlib.Path]] = None,
+        input_file: typing.Optional[typing.Union[str, pathlib.Path]] = None,
         completion_callback: typing.Optional[
             typing.Callable[[int, str, str], None]
         ] = None,
