@@ -208,10 +208,20 @@ class Executor:
             )
 
         if script:
-            self._runner.save_file(file_path=script, category="code")
+            if cwd:
+                self._runner.save_file(
+                    file_path=os.path.join(cwd, script), category="code"
+                )
+            else:
+                self._runner.save_file(file_path=script, category="code")
 
         if input_file:
-            self._runner.save_file(file_path=input_file, category="input")
+            if cwd:
+                self._runner.save_file(
+                    file_path=os.path.join(cwd, input_file), category="input"
+                )
+            else:
+                self._runner.save_file(file_path=input_file, category="input")
 
         command: typing.List[str] = []
 
