@@ -660,6 +660,7 @@ class Run:
         ] = None,
         completion_trigger: typing.Optional[multiprocessing.synchronize.Event] = None,
         env: typing.Optional[typing.Dict[str, str]] = None,
+        cwd: typing.Optional[pathlib.Path] = None,
         **cmd_kwargs,
     ) -> None:
         """Add a process to be executed to the executor.
@@ -715,6 +716,8 @@ class Run:
             this trigger event is set when the processes completes
         env : typing.Dict[str, str], optional
             environment variables for process
+        cwd: typing.Optional[pathlib.Path], optional
+            working directory to execute the process within
         **kwargs : Any, ..., optional
             all other keyword arguments are interpreted as options to the command
         """
@@ -773,6 +776,7 @@ class Run:
             completion_callback=completion_callback,  # type: ignore
             completion_trigger=completion_trigger,
             env=env,
+            cwd=cwd,
             **cmd_kwargs,
         )
 

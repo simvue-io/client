@@ -40,6 +40,7 @@ def _execute_process(
     completion_callback: typing.Optional[CompletionCallback] = None,
     completion_trigger: typing.Optional[multiprocessing.synchronize.Event] = None,
     environment: typing.Optional[typing.Dict[str, str]] = None,
+    cwd: typing.Optional[pathlib.Path] = None,
 ) -> tuple[subprocess.Popen, typing.Optional[threading.Thread]]:
     thread_out = None
 
@@ -51,6 +52,7 @@ def _execute_process(
                 stderr=err,
                 universal_newlines=True,
                 env=environment,
+                cwd=cwd,
             )
 
     if completion_callback or completion_trigger:
@@ -138,6 +140,7 @@ class Executor:
         script: typing.Optional[pathlib.Path] = None,
         input_file: typing.Optional[pathlib.Path] = None,
         env: typing.Optional[typing.Dict[str, str]] = None,
+        cwd: typing.Optional[pathlib.Path] = None,
         completion_callback: typing.Optional[CompletionCallback] = None,
         completion_trigger: typing.Optional[multiprocessing.synchronize.Event] = None,
         **kwargs,
@@ -186,6 +189,8 @@ class Executor:
             you should provide it as such and perform the upload manually, by default None
         env : typing.Dict[str, str], optional
             environment variables for process
+        cwd: typing.Optional[pathlib.Path], optional
+            working directory to execute the process within
         completion_callback : typing.Callable | None, optional
             callback to run when process terminates
         completion_trigger : multiprocessing.Event | None, optional
@@ -252,6 +257,7 @@ class Executor:
                 completion_callback,
                 completion_trigger,
                 env,
+                cwd,
             )
         )
 
