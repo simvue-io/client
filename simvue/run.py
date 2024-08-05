@@ -32,6 +32,7 @@ import msgpack
 import psutil
 from pydantic import ValidationError
 
+from .config import SimvueConfiguration
 import simvue.api as sv_api
 
 from .factory.dispatch import Dispatcher
@@ -88,7 +89,11 @@ class Run:
 
     @pydantic.validate_call
     def __init__(
-        self, mode: typing.Literal["online", "offline", "disabled"] = "online"
+        self,
+        mode: typing.Literal["online", "offline", "disabled"] = "online",
+        server_token: typing.Optional[str] = None,
+        server_url: typing.Optional[str] = None,
+        debug: bool = False,
     ) -> None:
         """Initialise a new Simvue run
 
@@ -99,6 +104,12 @@ class Run:
                 online - objects sent directly to Simvue server
                 offline - everything is written to disk for later dispatch
                 disabled - disable monitoring completely
+        server_token : str, optional
+            overwrite value for server token, default is None
+        server_url : str, optional
+            overwrite value for server URL, default is None
+        debug : bool, optional
+            run in debug mode, default is False
         """
         self._uuid: str = f"{uuid.uuid4()}"
         self._mode: typing.Literal["online", "offline", "disabled"] = mode
@@ -120,6 +131,17 @@ class Run:
         self._data: dict[str, typing.Any] = {}
         self._step: int = 0
         self._active: bool = False
+        self._config = SimvueConfiguration.fetch(
+            server_token=server_token, server_url=server_url
+        )
+
+        logging.getLogger(self.__class__.__module__).setLevel(
+            logging.DEBUG
+            if (debug is not None and debug)
+            or (debug is None and self._config.client.debug)
+            else logging.INFO
+        )
+
         self._aborted: bool = False
         self._url, self._token = get_auth()
         self._resources_metrics_interval: typing.Optional[int] = None
@@ -412,9 +434,6 @@ class Run:
 
         logger.debug("Starting run")
 
-        if self._simvue and not self._simvue.check_token():
-            return False
-
         data: dict[str, typing.Any] = {"status": self._status}
 
         if reconnect:
@@ -553,6 +572,9 @@ class Run:
         bool
             whether the initialisation was successful
         """
+        description = description or self._config.run.description
+        tags = tags or self._config.run.tags
+        folder = folder or self._config.run.folder
         self._term_color = not no_color
 
         if isinstance(visibility, str) and visibility not in ("public", "tenant"):
@@ -567,7 +589,7 @@ class Run:
         if self._mode == "disabled":
             return True
 
-        if not self._token or not self._url:
+        if not self._config.server.token or not self._config.server.url:
             self._error(
                 "Unable to get URL and token from environment variables or config file"
             )
@@ -618,7 +640,13 @@ class Run:
             self._error(f"{err}")
             return False
 
-        self._simvue = Simvue(self._name, self._uuid, self._mode, self._suppress_errors)
+        self._simvue = Simvue(
+            name=self._name,
+            uniq_id=self._uuid,
+            mode=self._mode,
+            config=self._config,
+            suppress_errors=self._suppress_errors,
+        )
         name, self._id = self._simvue.create_run(data)
 
         self._data = data
@@ -639,7 +667,7 @@ class Run:
                 fg="green" if self._term_color else None,
             )
             click.secho(
-                f"[simvue] Monitor in the UI at {self._url}/dashboard/runs/run/{self._id}",
+                f"[simvue] Monitor in the UI at {self._config.server.url}/dashboard/runs/run/{self._id}",
                 bold=self._term_color,
                 fg="green" if self._term_color else None,
             )
@@ -845,7 +873,9 @@ class Run:
         self._status = "running"
 
         self._id = run_id
-        self._simvue = Simvue(self._name, self._id, self._mode, self._suppress_errors)
+        self._simvue = Simvue(
+            self._name, self._id, self._mode, self._config, self._suppress_errors
+        )
         self._start(reconnect=True)
 
         return True

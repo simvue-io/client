@@ -481,6 +481,7 @@ def test_abort_on_alert_process(create_plain_run: typing.Tuple[sv_run.Run, dict]
     client = sv_cl.Client()
     client.abort_run(run._id, reason="testing abort")
     time.sleep(4)
+    assert run._resources_metrics_interval == 1
     for child in child_processes:
         assert not child.is_running()
     if not run._status == "terminated":

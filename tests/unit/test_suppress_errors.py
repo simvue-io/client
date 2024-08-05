@@ -13,7 +13,6 @@ def test_suppress_errors_false():
             suppress_errors=False,
             disable_resources_metrics=123,
         )
-    print(e.value)
     assert "Input should be a valid boolean, unable to interpret input" in f"{e.value}"
         
 def test_suppress_errors_true(caplog):

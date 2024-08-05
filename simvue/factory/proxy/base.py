@@ -87,9 +87,5 @@ class SimvueBaseClass(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def check_token(self) -> bool:
-        pass
-
-    @abc.abstractmethod
     def get_abort_status(self) -> bool:
         pass

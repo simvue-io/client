@@ -31,10 +31,10 @@ export SIMVUE_URL=...
 export SIMVUE_TOKEN=...
 ```
 or a file `simvue.ini` can be created containing:
-```ini
+```toml
 [server]
-url = ...
-token = ...
+url = "..."
+token = "..."
 ```
 The exact contents of both of the above options can be obtained directly by clicking the **Create new run** button on the web UI. Note that the environment variables have preference over the config file.
 

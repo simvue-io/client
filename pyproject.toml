@@ -102,6 +102,7 @@ markers = [
     "utilities: test simvue utilities module",
     "scenario: test scenarios",
     "executor: tests of executors",
+    "config: tests of simvue configuration",
     "api: tests of RestAPI functionality"
 ]
 

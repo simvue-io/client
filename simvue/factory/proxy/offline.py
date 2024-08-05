@@ -16,6 +16,9 @@ from simvue.utilities import (
     skip_if_failed,
 )
 
+if typing.TYPE_CHECKING:
+    pass
+
 logger = logging.getLogger(__name__)
 
 
@@ -216,7 +219,3 @@ class Offline(SimvueBaseClass):
         )
         pathlib.Path(os.path.join(self._directory, "heartbeat")).touch()
         return {"success": True}
-
-    @skip_if_failed("_aborted", "_suppress_errors", False)
-    def check_token(self) -> bool:
-        return True

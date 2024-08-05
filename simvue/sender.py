@@ -8,6 +8,8 @@ import time
 
 import msgpack
 
+from simvue.config.user import SimvueConfiguration
+
 from .factory.proxy.remote import Remote
 from .utilities import create_file, get_offline_directory, remove_file
 
@@ -170,11 +172,11 @@ def process(run):
     # Create run if it hasn't previously been created
     created_file = f"{current}/init"
     name = None
+    config = SimvueConfiguration()
     if not os.path.isfile(created_file):
-        remote = Remote(run_init["name"], id, suppress_errors=False)
-
-        # Check token
-        remote.check_token()
+        remote = Remote(
+            name=run_init["name"], uniq_id=id, config=config, suppress_errors=False
+        )
 
         name, run_id = remote.create_run(run_init)
         if name:
@@ -187,10 +189,9 @@ def process(run):
     else:
         name, run_id = get_details(created_file)
         run_init["name"] = name
-        remote = Remote(run_init["name"], run_id, suppress_errors=False)
-
-        # Check token
-        remote.check_token()
+        remote = Remote(
+            name=run_init["name"], uniq_id=run_id, config=config, suppress_errors=False
+        )
 
     if status == "running":
         # Check for recent heartbeat
