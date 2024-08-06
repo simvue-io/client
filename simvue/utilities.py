@@ -207,12 +207,14 @@ def prettify_pydantic(class_func: typing.Callable) -> typing.Callable:
     return wrapper
 
 
-def get_auth():
+def get_auth() -> tuple[str, str]:
     """
     Get the URL and access token
     """
-    url = None
-    token = None
+    url: typing.Optional[str] = None
+    token: typing.Optional[str] = None
+    token_source: str = ""
+    url_source: str = ""
 
     # Try reading from config file
     for filename in (
@@ -223,21 +225,28 @@ def get_auth():
             config = configparser.ConfigParser()
             config.read(filename)
             token = config.get("server", "token")
+            token_source = filename
             url = config.get("server", "url")
+            url_source = filename
 
     # Try environment variables
-    token = os.getenv("SIMVUE_TOKEN", token)
-    url = os.getenv("SIMVUE_URL", url)
+    if not token and (token := os.getenv("SIMVUE_TOKEN")):
+        token_source = "env:SIMVUE_TOKEN"
+    if not url and (url := os.getenv("SIMVUE_URL")):
+        url_source = "env:SIMVUE_URL"
 
     if not token:
         raise ValueError("No Simvue server token was specified")
     if not url:
         raise ValueError("No Simvue server URL was specified")
 
+    logger.info(f"Using '{token_source}' as source for Simvue token")
+    logger.info(f"Using '{url_source}' as source for Simvue URL")
+
     return url, token
 
 
-def get_offline_directory():
+def get_offline_directory() -> str:
     """
     Get directory for offline cache
     """
@@ -258,7 +267,7 @@ def get_offline_directory():
     return directory
 
 
-def create_file(filename):
+def create_file(filename: str) -> None:
     """
     Create an empty file
     """
@@ -269,7 +278,7 @@ def create_file(filename):
         logger.error("Unable to write file %s due to: %s", filename, str(err))
 
 
-def remove_file(filename):
+def remove_file(filename: str) -> None:
     """
     Remove file
     """
