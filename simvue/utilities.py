@@ -1,4 +1,6 @@
 import configparser
+import keyring
+import getpass
 import datetime
 import hashlib
 import logging
@@ -214,25 +216,49 @@ def get_auth():
     url = None
     token = None
 
+    keyring_user: typing.Optional[str] = None
+
     # Try reading from config file
     for filename in (
         os.path.join(os.path.expanduser("~"), ".simvue.ini"),
         "simvue.ini",
     ):
-        with contextlib.suppress(Exception):
-            config = configparser.ConfigParser()
-            config.read(filename)
+        if not os.path.exists(filename):
+            continue
+        config = configparser.ConfigParser()
+        config.read(filename)
+        with contextlib.suppress(
+            configparser.NoOptionError, configparser.NoSectionError
+        ):
             token = config.get("server", "token")
+        with contextlib.suppress(
+            configparser.NoOptionError, configparser.NoSectionError
+        ):
             url = config.get("server", "url")
+
+        # If the keyring is stored under a different user
+        # to the logged in user
+        with contextlib.suppress(
+            configparser.NoOptionError,
+            configparser.NoSectionError,
+        ):
+            keyring_user = config.get("server", "keyring_user")
 
     # Try environment variables
     token = os.getenv("SIMVUE_TOKEN", token)
     url = os.getenv("SIMVUE_URL", url)
 
-    if not token:
-        raise ValueError("No Simvue server token was specified")
     if not url:
         raise ValueError("No Simvue server URL was specified")
+
+    # If a token still has not been provided try keychain
+    with contextlib.suppress(keyring.errors.NoKeyringError):
+        user_name = getpass.getuser()
+        keyring_user = keyring_user or user_name
+        token = keyring.get_password(url, keyring_user)
+
+    if not token:
+        raise ValueError("No Simvue server token was specified")
 
     return url, token
 
