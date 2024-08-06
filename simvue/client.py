@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import typing
+import http
 import pydantic
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pandas import DataFrame
@@ -168,7 +169,7 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200],
+            expected_status=[http.HTTPStatus.OK],
             scenario="Retrieval of run ID from name",
             response=response,
         )
@@ -218,12 +219,12 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200, 404],
+            expected_status=[http.HTTPStatus.OK, http.HTTPStatus.NOT_FOUND],
             scenario=f"Retrieval of run '{run_id}'",
             response=response,
         )
 
-        if response.status_code == 404:
+        if response.status_code == http.HTTPStatus.NOT_FOUND:
             return None
 
         if not isinstance(json_response, dict):
@@ -339,7 +340,9 @@ class Client:
             raise ValueError("Invalid format specified")
 
         json_response = self._get_json_from_response(
-            expected_status=[200], scenario="Run retrieval", response=response
+            expected_status=[http.HTTPStatus.OK],
+            scenario="Run retrieval",
+            response=response,
         )
 
         if not isinstance(json_response, dict):
@@ -381,7 +384,7 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200],
+            expected_status=[http.HTTPStatus.OK],
             scenario=f"Deletion of run '{run_identifier}'",
             response=response,
         )
@@ -416,7 +419,7 @@ class Client:
         )
 
         if (
-            response.status_code == 200
+            response.status_code == http.HTTPStatus.OK
             and (response_data := response.json().get("data"))
             and (identifier := response_data[0].get("id"))
         ):
@@ -458,7 +461,7 @@ class Client:
             f"{self._url}/api/folders/{folder_id}", headers=self._headers, params=params
         )
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             if runs := response.json().get("runs", []):
                 logger.debug(f"Runs from '{folder_path}' deleted successfully: {runs}")
             else:
@@ -523,7 +526,7 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200, 404],
+            expected_status=[http.HTTPStatus.OK, http.HTTPStatus.NOT_FOUND],
             scenario=f"Deletion of folder '{folder_path}'",
             response=response,
         )
@@ -551,7 +554,7 @@ class Client:
             f"{self._url}/api/alerts/{alert_id}", headers=self._headers
         )
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             logger.debug(f"Alert '{alert_id}' deleted successfully")
             return
 
@@ -587,7 +590,7 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200],
+            expected_status=[http.HTTPStatus.OK],
             scenario=f"Retrieval of artifacts for run '{run_id}",
             response=response,
         )
@@ -613,7 +616,7 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200, 404],
+            expected_status=[http.HTTPStatus.OK, http.HTTPStatus.NOT_FOUND],
             scenario=f"Retrieval of artifact '{name}' for run '{run_id}'",
             response=response,
         )
@@ -652,7 +655,7 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200, 404],
+            expected_status=[http.HTTPStatus.OK, http.HTTPStatus.NOT_FOUND],
             scenario=f"Abort of run '{run_id}'",
             response=response,
         )
@@ -846,7 +849,7 @@ class Client:
         )
 
         self._get_json_from_response(
-            expected_status=[200],
+            expected_status=[http.HTTPStatus.OK],
             scenario=f"Download of artifacts for run '{run_id}'",
             response=response,
         )
@@ -936,7 +939,9 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200], scenario="Retrieval of folders", response=response
+            expected_status=[http.HTTPStatus.OK],
+            scenario="Retrieval of folders",
+            response=response,
         )
 
         if not isinstance(json_response, dict):
@@ -979,7 +984,7 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200],
+            expected_status=[http.HTTPStatus.OK],
             scenario=f"Request for metric names for run '{run_id}'",
             response=response,
         )
@@ -1013,7 +1018,7 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200],
+            expected_status=[http.HTTPStatus.OK],
             scenario=f"Retrieval of metrics '{metric_names}' in " f"runs '{run_ids}'",
             response=metrics_response,
         )
@@ -1270,7 +1275,7 @@ class Client:
         )
 
         json_response = self._get_json_from_response(
-            expected_status=[200],
+            expected_status=[http.HTTPStatus.OK],
             scenario=f"Retrieval of events for run '{run_id}'",
             response=response,
         )
@@ -1311,7 +1316,7 @@ class Client:
         response = requests.get(f"{self._url}/api/runs/{run_id}", headers=self._headers)
 
         json_response = self._get_json_from_response(
-            expected_status=[200],
+            expected_status=[http.HTTPStatus.OK],
             scenario=f"Retrieval of alerts for run '{run_id}'",
             response=response,
         )

@@ -1,6 +1,7 @@
 import logging
 import time
 import typing
+import http
 
 from simvue.api import get, post, put
 from simvue.factory.proxy.base import SimvueBaseClass
@@ -58,7 +59,7 @@ class Remote(SimvueBaseClass):
             )
             return []
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             return data
 
         return []
@@ -86,7 +87,10 @@ class Remote(SimvueBaseClass):
                 response.text,
             )
 
-            if response.status_code not in (200, 409):
+            if response.status_code not in (
+                http.HTTPStatus.OK,
+                http.HTTPStatus.CONFLICT,
+            ):
                 self._error(f"Unable to create folder {data.get('folder')}")
                 return (None, None)
 
@@ -104,10 +108,10 @@ class Remote(SimvueBaseClass):
             response.text,
         )
 
-        if response.status_code == 409:
+        if response.status_code == http.HTTPStatus.CONFLICT:
             self._error(f"Duplicate run, name {data['name']} already exists")
             return (None, None)
-        elif response.status_code != 200:
+        elif response.status_code != http.HTTPStatus.OK:
             self._error(f"Got status code {response.status_code} when creating run")
             return (None, None)
 
@@ -143,7 +147,7 @@ class Remote(SimvueBaseClass):
             response.text,
         )
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             return data
 
         self._error(f"Got status code {response.status_code} when updating run")
@@ -165,11 +169,11 @@ class Remote(SimvueBaseClass):
             self._error(f"Exception creatig folder: {err}")
             return None
 
-        if response.status_code == 200 or response.status_code == 409:
+        if response.status_code in (http.HTTPStatus.OK, http.HTTPStatus.CONFLICT):
             folder_id = response.json()["id"]
             data["id"] = folder_id
 
-            if response.status_code == 200:
+            if response.status_code == http.HTTPStatus.OK:
                 logger.debug('Got id of new folder: "%s"', folder_id)
             else:
                 logger.debug('Got id of existing folder: "%s"', folder_id)
@@ -188,7 +192,7 @@ class Remote(SimvueBaseClass):
             response.text,
         )
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             return response.json()
 
         self._error(
@@ -222,10 +226,10 @@ class Remote(SimvueBaseClass):
             response.text,
         )
 
-        if response.status_code == 409:
+        if response.status_code == http.HTTPStatus.CONFLICT:
             return data
 
-        if response.status_code != 200:
+        if response.status_code != http.HTTPStatus.OK:
             self._error(
                 f"Got status code {response.status_code} when registering file {data['name']}"
             )
@@ -251,7 +255,7 @@ class Remote(SimvueBaseClass):
                         response.status_code,
                     )
 
-                    if response.status_code != 200:
+                    if response.status_code != http.HTTPStatus.OK:
                         self._error(
                             f"Got status code {response.status_code} when uploading object {data['name']} to object storage"
                         )
@@ -278,7 +282,7 @@ class Remote(SimvueBaseClass):
                             response.status_code,
                         )
 
-                        if response.status_code != 200:
+                        if response.status_code != http.HTTPStatus.OK:
                             self._error(
                                 f"Got status code {response.status_code} when uploading file {data['name']} to object storage"
                             )
@@ -301,7 +305,7 @@ class Remote(SimvueBaseClass):
                 )
                 return None
 
-            if response.status_code != 200:
+            if response.status_code != http.HTTPStatus.OK:
                 self._error(
                     f"Got status code {response.status_code} when confirming upload of file {data['name']}: {response.text}"
                 )
@@ -331,7 +335,7 @@ class Remote(SimvueBaseClass):
             response.text,
         )
 
-        if response.status_code in (200, 409):
+        if response.status_code in (http.HTTPStatus.OK, http.HTTPStatus.CONFLICT):
             return response.json()
 
         self._error(f"Got status code {response.status_code} when creating alert")
@@ -351,7 +355,7 @@ class Remote(SimvueBaseClass):
             self._error(f"Got exception when setting alert state: {err}")
             return {}
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             return response.json()
 
         return {}
@@ -375,7 +379,7 @@ class Remote(SimvueBaseClass):
             )
             return []
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             return data
 
         return []
@@ -399,7 +403,7 @@ class Remote(SimvueBaseClass):
 
         logger.debug("Got status code %d when sending metrics", response.status_code)
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             return response.json()
 
         self._error(f"Got status code {response.status_code} when sending metrics")
@@ -424,7 +428,7 @@ class Remote(SimvueBaseClass):
 
         logger.debug("Got status code %d when sending events", response.status_code)
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             return response.json()
 
         self._error(f"Got status code {response.status_code} when sending events")
@@ -447,7 +451,7 @@ class Remote(SimvueBaseClass):
 
         logger.debug("Got status code %d when sending heartbeat", response.status_code)
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             return response.json()
 
         self._error(f"Got status code {response.status_code} when sending heartbeat")
@@ -465,6 +469,22 @@ class Remote(SimvueBaseClass):
         if time.time() - expiry > 0:
             self._error("Token has expired")
             return False
+
+        try:
+            response = get(f"{self._url}/api/version", self._headers)
+
+            if response.status_code != http.HTTPStatus.OK or not response.json().get(
+                "version"
+            ):
+                raise AssertionError
+
+            if response.status_code == http.HTTPStatus.UNAUTHORIZED:
+                self._error("Unauthorised token")
+                return False
+
+        except Exception as err:
+            self._error(f"Exception retrieving server version: {str(err)}")
+            return False
         return True
 
     @skip_if_failed("_aborted", "_suppress_errors", False)
@@ -481,7 +501,7 @@ class Remote(SimvueBaseClass):
             "Got status code %d when checking abort status", response.status_code
         )
 
-        if response.status_code == 200:
+        if response.status_code == http.HTTPStatus.OK:
             if (status := response.json().get("status")) is None:
                 self._error(
                     f"Expected key 'status' when retrieving abort status {response.json()}"

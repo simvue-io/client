@@ -10,6 +10,7 @@ to a JSON string
 import copy
 import json
 import typing
+import http
 
 import requests
 from tenacity import (
@@ -75,18 +76,25 @@ def post(
         url, headers=headers, data=data_sent, timeout=DEFAULT_API_TIMEOUT
     )
 
-    if response.status_code in (401, 403):
+    if response.status_code in (
+        http.HTTPStatus.UNAUTHORIZED,
+        http.HTTPStatus.FORBIDDEN,
+    ):
         raise RuntimeError(
             f"Authorization error [{response.status_code}]: {response.text}"
         )
 
-    if response.status_code == 422:
+    if response.status_code == http.HTTPStatus.UNPROCESSABLE_ENTITY:
         _parsed_response = parse_validation_response(response.json())
         raise ValueError(
             f"Validation error for '{url}' [{response.status_code}]:\n{_parsed_response}"
         )
 
-    if response.status_code not in (200, 201, 409):
+    if response.status_code not in (
+        http.HTTPStatus.OK,
+        http.HTTPStatus.CREATED,
+        http.HTTPStatus.CONFLICT,
+    ):
         raise RuntimeError(
             f"HTTP error for '{url}' [{response.status_code}]: {response.text}"
         )
