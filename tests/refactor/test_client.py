@@ -17,11 +17,18 @@ def test_get_events(create_test_run: tuple[sv_run.Run, dict]) -> None:
 
 @pytest.mark.dependency
 @pytest.mark.client
-def test_get_alerts(create_test_run: tuple[sv_run.Run, dict]) -> None:
+@pytest.mark.parametrize(
+    "from_run", (True, False)
+)
+def test_get_alerts(create_test_run: tuple[sv_run.Run, dict], from_run: bool) -> None:
     client = svc.Client()
-    assert (
-        len(client.get_alerts(create_test_run[1]["run_id"], critical_only=False)) == 5
-    )
+
+    if from_run:
+        assert (
+            len(client.get_alerts(create_test_run[1]["run_id"], critical_only=False)) == 5
+        )
+    else:
+        client.get_alerts(names_only=True)
 
 
 @pytest.mark.dependency

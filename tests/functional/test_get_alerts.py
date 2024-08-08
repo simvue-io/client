@@ -19,7 +19,7 @@ class TestGetAlerts(unittest.TestCase):
         folder = '/test-%s' % str(uuid.uuid4())
         name = common.RUNNAME3
         run.init(name, folder=folder)
-        run.add_alert(
+        run.create_alert(
             name='value_below_1',
             source='metrics',
             frequency=1,
@@ -28,7 +28,7 @@ class TestGetAlerts(unittest.TestCase):
             metric='test_metric',
             window=2
         )
-        run.add_alert(
+        run.create_alert(
             name='value_above_1',
             source='metrics',
             frequency=1,
